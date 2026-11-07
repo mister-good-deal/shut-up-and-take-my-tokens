@@ -34,7 +34,7 @@ with a strict regex, and `created_at`. No comment text is ever shown or passed o
 
 **Live** for 24 hours from `created_at`. There is no release: age alone ends it.
 
-**Owner**: the earliest live claim on the issue, compared by the comment's date and id, never by author.
+**Owner**: the first live claim GitHub lists on the issue, never compared by author. Dates stop at the second, and the list's order is the same for every reader, so it settles a tie.
 
 ## Issue states
 

@@ -16,7 +16,10 @@ function stampToken(ring, center) {
   // Short stamps open up their letter spacing; only long ones get their glyphs squeezed.
   $('stamp').setAttribute('lengthAdjust', text.length > fitting ? 'spacingAndGlyphs' : 'spacing');
   $('center').textContent = center;
-  if (center.length > 4) $('center').setAttribute('textLength', 100);
+  if (center.length > 4) {
+    $('center').setAttribute('textLength', 100);
+    $('center').setAttribute('lengthAdjust', 'spacingAndGlyphs');
+  }
 }
 
 function flipToken() {
@@ -98,11 +101,13 @@ function showTask({ repo, options, issue, counts, namedProblem }) {
   const problem = { taken: 'The issue in your link is being worked on, so here is another one.', 'not-approved': 'The issue in your link is not open to agents, so here is another one.' }[namedProblem] ?? '';
   $('work').textContent = `${problem} ${plural(counts.available, 'issue')} free, ${counts.taken} being worked on.`.trim();
 
+  // A browser can restore a radio on reload or Back, even one now hidden because the maintainer stopped offering it.
+  document.querySelector('input[name="mode"][value="ask"]').checked = true;
   $('skip-option').hidden = !options.skip_permissions;
-  // The clipboard holds the previous choice, so a changed mode must not leave that command on show.
+  // The clipboard holds the previous choice, so a changed mode must not leave that command on show, nor look as if it replaced it.
   $('modes').addEventListener('change', () => {
+    if (!$('command').hidden) $('status').textContent = 'What you copied still has the previous level. Click your tool again to replace it.';
     $('command').hidden = true;
-    $('status').textContent = '';
     for (const button of $('providers').children) button.setAttribute('aria-pressed', 'false');
   });
 
@@ -111,7 +116,7 @@ function showTask({ repo, options, issue, counts, namedProblem }) {
     const mode = document.querySelector('input[name="mode"]:checked').value;
     const how = { ask: '', auto: ' with fewer prompts', skip: ' without approval prompts' }[mode];
     copyCommand(localCommand(provider, repo, issue.number, mode), $('command'), $('status'),
-      `Paste it into your terminal: it forks ${repo} into a new folder, claims the issue, then starts ${label}${how}. Needs ${bin} and a signed-in gh.`);
+      `Paste it into your terminal: it forks ${repo} into a new folder, claims the issue, then starts ${label}${how}. ${label} may first ask whether you trust that folder. Needs ${bin}, a signed-in gh, and git able to push through it (gh auth setup-git).`);
   });
 }
 

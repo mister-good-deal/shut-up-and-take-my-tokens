@@ -132,10 +132,13 @@ Anyone can reach the page at a stable public address, and this project itself ca
 
 ### Edge Cases
 
-- The contributor already has a fork: the command reuses it. A folder with the project's name in the current directory: the command stops with the tool's own message, before any comment is posted.
+- The contributor already has a fork: the command reuses it. A folder with the command's name, `take-my-tokens-` and the project's name, in the current directory: the command stops with the tool's own message, before any comment is posted.
 - The contributor owns the project or can already write to it, for instance a maintainer trying their own badge: the command still reaches a working clone.
+- The fork fails for another reason, or git has no credentials: the command stops at the push check, before any comment is posted, with git's own message. Removing the folder allows another try.
+- A project named after a folder that tools trust, such as `.bashrc.d` or `bin`: the folder's fixed prefix keeps its files out of it.
 - The contributor's fork is behind the project: the agent works from the project's current state.
-- The contributor renamed their fork: the command still clones it into a folder named after the project.
+- The contributor renamed their fork: the command still clones it into the same folder.
+- The tool asks whether the contributor trusts the new folder, as Claude Code and Codex do for a repository they have not seen: the claim is already posted, so a contributor who walks away holds the issue until the claim expires. The page warns of the question before the command is pasted.
 - `gh` is missing or not signed in, or the chosen tool is not installed: the command stops at that step, and the page has already said what it needs.
 - GitHub cannot be read for a reason other than the file's absence, including its limit on anonymous requests: the page says it could not check and to try again later, and offers nothing.
 - The browser blocks clipboard access: the page says so and the command stays visible to copy by hand.
@@ -163,7 +166,7 @@ Anyone can reach the page at a stable public address, and this project itself ca
 
 **Local run**
 
-- **FR-008**: The page MUST show the tools the maintainer offers directly. Clicking one MUST show and copy one single-line command that checks the tool is installed, forks the project, enters it, claims the issue and starts that tool with a fixed task.
+- **FR-008**: The page MUST show the tools the maintainer offers directly. Clicking one MUST show and copy one single-line command that checks the tool is installed, forks the project, enters it, checks the work could be pushed from there, claims the issue and starts that tool with a fixed task.
 - **FR-009**: The page MUST offer the approval levels "before anything risky" (default), "less often", and, only if the maintainer offers it, "never", next to a warning about the risk.
 - **FR-010**: Changing the approval level MUST clear any previously shown command.
 - **FR-011**: The command MUST NOT contain free text taken from the address, the repository's file or an issue.
@@ -198,7 +201,7 @@ FR-012 to FR-017 described the cloud path, which left this version at GATE 2 (se
 **AI first**
 
 - **FR-026**: The product MUST publish plain-text instructions at a stable public address, readable without a browser, covering how to contribute to a project and how to set one up. The page and the README MUST point to them.
-- **FR-027**: Those instructions MUST carry the same rules as the page: opt-in file, approved issues only, and no widening of the agent's own permissions unless its owner said so.
+- **FR-027**: Those instructions MUST carry the same rules as the page: opt-in file and its list of tools, approved issues only, and no widening of the agent's own permissions unless its owner said so.
 - **FR-028**: The instructions and the tasks the page builds MUST NOT drift apart: a check in the project's tests MUST fail if they do.
 
 **Publishing**
@@ -223,7 +226,7 @@ FR-012 to FR-017 described the cloud path, which left this version at GATE 2 (se
 
 ### Measurable Outcomes
 
-- **SC-001**: A contributor with a tool and GitHub access already set up goes from the badge to a copied command in 2 clicks, and to a running agent with one paste.
+- **SC-001**: A contributor with a tool and GitHub access already set up goes from the badge to a copied command in 2 clicks, and to a running agent with one paste and their tool's own question about trusting the new folder.
 - **SC-002**: A contributor gets a draft pull request on an opted-in project, verified with a real agent on a sandbox repository, and each step specific to a non-collaborator verified by hand on a repository they cannot write to. The README states what remains unobserved.
 - **SC-003**: Removed with the cloud path.
 - **SC-004**: A maintainer goes from nothing to a reviewable pull request with everything set up by running one command and answering at most 5 questions.

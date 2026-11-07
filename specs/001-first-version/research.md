@@ -72,8 +72,9 @@ make `encodeURIComponent` throw.
 - `raw.githubusercontent.com/<repo>/HEAD/TAKE_MY_TOKENS.md`: not an API call, with `access-control-allow-origin: *`.
 - `api.github.com/repos/<repo>/issues?labels=take-my-tokens&state=open&sort=created&direction=asc&per_page=100`: it answers
   both "is this issue approved" and "which is the oldest". Pull requests appear in that list and are filtered out.
-- `api.github.com/repos/<repo>/pulls?state=open&per_page=100`: `#N` and `/issues/N` in titles and bodies give the issues
-  already taken.
+- `api.github.com/repos/<repo>/pulls?state=open&per_page=100`: this repository's `#N`, `gh-N`, `owner/name#N` and `/issues/N` in
+  titles and bodies give the issues already taken. Numbers tied to another repository do not count: on `cli/cli`, two Dependabot
+  pull requests alone listed 55 numbers of other projects, which would hide an issue of that number for as long as they stay open.
 - `api.github.com/repos/<repo>/issues/comments?since=<24h ago>&sort=created&direction=desc&per_page=100`: live claims (R11).
 
 **Evidence**: the public API answered 200 with `access-control-allow-origin: *` and `x-ratelimit-limit: 60`, so about 20
@@ -88,11 +89,18 @@ limit), a GitHub Action writing a list (needs installing, against principle III)
 ## R5. Local command on owned, forked and renamed repositories
 
 **Decision**:
-`AGENT --version >/dev/null && { gh repo fork R --clone -- NAME || gh repo clone R NAME; } && cd NAME && CLAIM=$(gh issue comment N --repo R --body 'MARKER …') && AGENT 'TASK'"$CLAIM"`
+`AGENT --version >/dev/null && { gh repo fork R --clone -- FOLDER || gh repo clone R FOLDER; } && cd ./FOLDER && GIT_TERMINAL_PROMPT=0 git push -q --dry-run origin HEAD:refs/heads/take-my-tokens-check && CLAIM=$(gh issue comment N --repo R --body 'MARKER …') && AGENT 'TASK'"$CLAIM"`
 
 The first step makes a missing tool stop everything with the shell's own message, before anything is forked or posted. The claim
 sits in the command so that it does not depend on the agent, and its address reaches the agent so it can tell its comment from
 another's.
+
+`FOLDER` is `take-my-tokens-` and the project's name. With the bare name, `?repo=evil/.bashrc.d` pasted in a home folder puts the
+project's files where a stock Fedora `~/.bashrc` runs them at the next shell, with no approval from anyone. `./` keeps `cd` from
+following `CDPATH` into another checkout. The fallback fires on any failed fork, not only an owner's, so the dry run stops a clone
+that could not deliver, and git without credentials, before a claim goes out. It exits 128 on a clone of `octocat/Spoon-Knife` and
+with no credentials, and 0 on a repository the account owns, where it creates no branch. `GIT_TERMINAL_PROMPT=0` stops it waiting
+at a username prompt, and the branch name is one no run uses, since a leftover branch of that name would be rejected.
 
 **Evidence** (gh 2.103.3, real runs):
 
@@ -197,6 +205,20 @@ Real runs on 2026-11-07, on `mister-good-deal/take-my-tokens-sandbox`, with the 
 | Claude Code asked to set up a clone of the sandbox with `llms.txt` only, its answers in the sentence, local files only | Wrote a `TAKE_MY_TOKENS.md` based on the repository and the badge with the right repository, and the page reads the file as `claude, codex`, no skip. It also warned that issues outside the approved list still carried the label. The label and the pull request were left out on purpose |
 
 **What changed because of this**: the README gives the sentence to tell your agent, with the permission in it, and `llms.txt` tells an agent to stop and ask its owner when its tool refuses.
+
+**What changed after these runs**: a review changed the folder's name, added the check that the work can be pushed, and replaced `gh pr list --search N` (on `cli/cli`, `--search 7` lists 7 pull requests and none mentions #7) and `gh issue list --json number,title` (no claims, 30 rows). The push check exits 0 from a real fork, on `octocat/Spoon-Knife`, and creates no branch.
+
+**Second round, on the final wording**: each copied command ran for real up to the claim, in a new folder. All four then stopped on the tool's trust question, nobody was there to answer, so the same prompt with the same claim went to `claude -p` and `codex exec`.
+
+| Run | Result |
+|---|---|
+| Claude Code and Codex on #12, claims **in the same second** (18:25:34) | Claude Code's comment was listed first: it kept the issue and delivered draft pull request #18. Codex read that it had lost, moved to #13 and delivered #20 |
+| Claude Code started on #6, not approved | Left it alone, moved to #14, delivered #19 |
+| Claude Code started on #16, deliberately vague | Explained on the issue what was missing and stopped, leaving its claim |
+| Claude Code given only the `llms.txt` address and the owner's permission, interactive | Checked the file, found work before forking, claimed #15, delivered #17 |
+| The page afterwards, untouched files, real GitHub | "Agents are already working on every issue", nothing offered |
+
+**A correction about questions**: the first round was reported as asking nothing of anyone. That holds for the claim race, but in a repository the tool has not seen, Claude Code and Codex first ask whether the person trusts the folder, and in that round the maintainer was answering those questions in the panes, which was only found later in `~/.claude.json`. So a contributor has one more answer to give, required by the vendor, after the claim is already posted. The page and the README now say so. A session started outside a repository, as with `llms.txt`, is not asked.
 
 **Environment notes**: the first Codex attempt failed before doing anything, because the default model of this machine's `~/.codex/config.toml` is refused for a ChatGPT account. It reran with `-m gpt-6-luna` and the same task. Codex's `--approve-for-me` sandbox blocks the network at first, and its automatic review then allowed the `gh` commands. Without flags, each tool uses its owner's own settings, so "before anything risky" is only as cautious as those.
 

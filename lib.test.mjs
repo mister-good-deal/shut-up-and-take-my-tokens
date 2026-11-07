@@ -1,13 +1,13 @@
 // Run with: node lib.test.mjs
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { join } from 'node:path';
 import {
   CLAIM_COMMENT, MARKER, PROVIDERS, RULES, badge, buildPrompt, claimSteps, commentsUrl, deliverySteps, instructionsUrl, issuesUrl,
-  liveClaims, localCommand, pageState, parseOptions, parseParams, pickIssue, pullsUrl, referencedIssues, setupCommand, setupPrompt,
-  setupSteps, shellQuote,
+  listCommand, liveClaims, localCommand, pageState, parseOptions, parseParams, pickIssue, prepareSteps, pullCheck, pullsUrl,
+  referencedIssues, setupCommand, setupPrompt, setupSteps, shellQuote,
 } from './lib.js';
 
 const search = (repo, issue) => new URLSearchParams({ repo, ...(issue === undefined ? {} : { issue }) }).toString();
@@ -41,12 +41,28 @@ assert.deepEqual(parseOptions(front('providers:')).providers, []);
 assert.deepEqual(parseOptions(front('providers: claude, evil; rm -rf ~, __proto__, constructor')).providers, ['claude']);
 for (const value of ['TRUE', 'yes', '1', 'true # sure', '"true"', ''])
   assert.equal(parseOptions(front(`skip_permissions: ${value}`)).skip_permissions, false, `should stay off: ${value}`);
+assert.equal(parseOptions(front('skip_permissions:  true  ')).skip_permissions, true, 'spaces around a value do not count');
+
+// A crafted file cannot freeze the visitor's tab
+{
+  const start = performance.now();
+  parseOptions(front(`x:${' '.repeat(4000)}y\rz`));
+  parseOptions(front(`x:y${' '.repeat(200000)}z`));
+  assert.ok(performance.now() - start < 1000, 'crafted lines must parse fast');
+}
 
 // Issues already referenced by an open pull request
 assert.deepEqual(
-  [...referencedIssues([{ title: 'Fix #3', body: null }, { title: 'x', body: 'See https://github.com/a/b/issues/4 and #5, not #x or 6' }])],
+  [...referencedIssues([{ title: 'Fix #3', body: null }, { title: 'x', body: 'See https://github.com/a/b/issues/4 and #5, not #x or 6' }], 'a/b')],
   [3, 4, 5],
 );
+assert.deepEqual([...referencedIssues([{ title: '(#1) gh-2 GH-3', body: 'a/b#4 A/B#5 https://github.com/A/b/issues/6 [#7] done' }], 'a/b')], [1, 2, 3, 4, 5, 6, 7]);
+assert.deepEqual(
+  [...referencedIssues([{ title: 'Bump pflag', body: 'spf13/pflag#452 https://github.com/github/codeql-action/issues/4286 <a href="https://x.test/4284">#4284</a> [#77](https://github.com/x/y/issues/77) &#8203; x-a/b#6 pgh-8' }], 'a/b')],
+  [],
+  'the numbers of other repositories take nothing',
+);
+assert.deepEqual([...referencedIssues([{ title: 'a/bxc#9 https://github.com/a/bxc/issues/10', body: '' }], 'a/b.c')], [], 'a dot in a repository name is a dot');
 
 // Claims: the marker at the very start, younger than 24 hours, on a well-formed issue
 const now = Date.parse('2026-11-07T12:00:00Z');
@@ -64,12 +80,13 @@ assert.match(commentsUrl('a/b', now), /since=2026-11-06T12:00:00\.000Z/);
 
 // Picking the issue
 const issue = (number, extra = {}) => ({ number, title: `Issue ${number}`, ...extra });
-const pick = (over) => pickIssue({ named: null, issues: [issue(1), issue(2), issue(3)], pulls: [], claims: new Set(), random: () => 0, ...over });
+const pick = (over) => pickIssue({ repo: 'a/b', named: null, issues: [issue(1), issue(2), issue(3)], pulls: [], claims: new Set(), random: () => 0, ...over });
 assert.equal(pick({}).issue.number, 1);
 assert.equal(pick({ random: () => 0.99 }).issue.number, 3, 'visitors spread over the available issues');
 assert.deepEqual(pick({ claims: new Set([1]) }).counts, { available: 2, taken: 1 });
 assert.equal(pick({ claims: new Set([1]) }).issue.number, 2, 'a claimed issue is not offered');
 assert.equal(pick({ pulls: [{ title: 'Fix #1', body: '' }] }).issue.number, 2, 'an issue with an open pull request is not offered');
+assert.equal(pick({ pulls: [{ title: 'Bump', body: 'other/project#1' }] }).issue.number, 1, 'a number of another repository takes nothing');
 assert.equal(pick({ issues: [issue(1, { pull_request: {} }), issue(2)] }).issue.number, 2, 'pull requests are not issues');
 assert.deepEqual(pick({ issues: [issue(1, { pull_request: {} }), issue(2)] }).counts, { available: 1, taken: 0 });
 assert.equal(pick({ issues: [issue('1;id'), issue(2)] }).issue.number, 2, 'only integer numbers can reach a command');
@@ -142,15 +159,19 @@ assert.equal((await state('repo=a/b', fakeGitHub({ comments: [claim(1, 30)], pul
   for (const repo of craftedRepos) assert.equal((await state(search(repo))).view, 'setup', `should offer nothing: ${JSON.stringify(repo)}`);
 }
 
-// Quoting survives a real shell
-const evil = `it's $(touch /tmp/x) \`id\` "q" \\ ; rm -rf ~\nline2`;
+// Quoting survives a real shell. Harmless on purpose: if quoting ever breaks, this text really runs, on the machine of whoever runs the tests.
+const evil = `it's $(echo sub) \`echo tick\` "q" \\ ; echo semi\nline2`;
 assert.equal(execFileSync('bash', ['-c', `printf %s ${shellQuote(evil)}`], { encoding: 'utf8' }), evil);
 
 // The task carries the workflow, with exact commands and concrete values
 {
   const prompt = buildPrompt('a/b', 7);
   assert.match(prompt, /Your issue is #7/);
-  assert.match(prompt, /gh issue view 7 --repo a\/b --json state,labels,comments/);
+  assert.match(prompt, /gh issue view 7 --repo a\/b --json title,body,state,labels,comments/);
+  assert.ok(prompt.includes(pullCheck('a/b', 7)), 'the check reads the pull requests, with no text search that matches any number');
+  assert.ok(prompt.includes(listCommand('a/b')), 'moving on reads the claims, as far as the page does');
+  assert.match(listCommand('a/b'), /--limit 100 --json number,title,comments$/);
+  assert.match(prompt, /the first one listed is your own claim comment/);
   assert.match(prompt, /gh pr create --draft --repo a\/b --head OWNER:BRANCH/);
   assert.match(prompt, /git fetch https:\/\/github\.com\/a\/b\.git HEAD/);
   assert.ok(prompt.includes(CLAIM_COMMENT), 'moving on posts the same claim');
@@ -178,6 +199,12 @@ assert.ok(!/cloud/i.test(setupPrompt('https://x.test/')));
     ...setupSteps('https://mister-good-deal.github.io/shut-up-and-take-my-tokens/'),
   ];
   for (const text of shared) assert.ok(llms.includes(text), `llms.txt has drifted from: ${text}`);
+  const commands = [`curl -fsS ${instructionsUrl('R')}`, listCommand('R'), pullCheck('R', 'N'), ...prepareSteps('R', 'FOLDER')];
+  for (const text of commands) assert.ok(llms.includes(`    ${text}\n`), `llms.txt has drifted from: ${text}`);
+  // What stops an agent comes before what leaves a trace, as on the page
+  const order = ['providers line', listCommand('R'), prepareSteps('R', 'FOLDER')[0], 'gh issue comment N'].map((text) => llms.indexOf(text));
+  assert.ok(order[0] >= 0 && order.every((at, index) => index === 0 || at > order[index - 1]), `llms.txt steps are out of order: ${order}`);
+  assert.match(llms, /Do not widen your own permissions/);
 }
 
 // The page reaches no third party on its own
@@ -191,19 +218,23 @@ assert.ok(!/cloud/i.test(setupPrompt('https://x.test/')));
 }
 
 // The local command works end to end against stub CLIs, without touching GitHub, in every shell it targets
-const dir = mkdtempSync(join(tmpdir(), 'take-my-tokens-'));
+// realpath because the shell reports the real path, and a temporary folder can sit behind a symlink, as it does on macOS.
+const dir = realpathSync(mkdtempSync(join(tmpdir(), 'take-my-tokens-')));
 try {
   const stub = (name, body) => {
     writeFileSync(join(dir, name), `#!/bin/bash\n${body}\n`);
     chmodSync(join(dir, name), 0o755);
   };
   const CLAIM_URL = 'https://github.com/acme/web.app/issues/7#issuecomment-99';
-  stub('gh', `printf "%s\\n" "$*" >> "$OUT_DIR/gh.log"
+  stub('gh', `printf "%s\\n" "$*" >> "$OUT_DIR/calls.log"
 case "$1 $2" in
   "repo fork") [ -z "$FAIL_FORK" ] && mkdir "$6" ;;
   "repo clone") [ -z "$FAIL_CLONE" ] && mkdir "$4" ;;
   "issue comment") [ -z "$FAIL_COMMENT" ] && echo "${CLAIM_URL}" ;;
+  "pr list") printf "%s" "$PULLS" ;;
 esac`);
+  stub('git', `printf "%s\\n" "git $*" >> "$OUT_DIR/calls.log"
+[ -z "$FAIL_PUSH" ]`);
   for (const name of allProviders) {
     stub(name, `if [ "$1" = "--version" ]; then [ -z "$FAIL_TOOL" ]; exit; fi
 printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
@@ -211,16 +242,17 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
 
   const shells = ['bash', 'zsh'].filter((shell) => spawnSync(shell, ['--version']).status === 0);
   const reset = () => {
-    for (const file of ['gh.log', 'agent.args']) rmSync(join(dir, file), { force: true });
+    for (const file of ['calls.log', 'agent.args']) rmSync(join(dir, file), { force: true });
   };
+  // PATH is set inside the command: startup files (BASH_ENV, ~/.zshenv) run before it and could put the real gh and agents back ahead of the stubs.
   const run = (command, cwd, shell = 'bash', env = {}) => {
     reset();
-    return spawnSync(shell, ['-c', command], {
+    return spawnSync(shell, ['-c', `PATH=${shellQuote(dir)}:"$PATH"; ${command}`], {
       cwd,
-      env: { ...process.env, PATH: dir + delimiter + process.env.PATH, OUT_DIR: dir, ...env },
+      env: { ...process.env, OUT_DIR: dir, ...env },
     }).status;
   };
-  const ghCalls = () => (existsSync(join(dir, 'gh.log')) ? readFileSync(join(dir, 'gh.log'), 'utf8').trim().split('\n') : []);
+  const toolCalls = () => (existsSync(join(dir, 'calls.log')) ? readFileSync(join(dir, 'calls.log'), 'utf8').trim().split('\n') : []);
   const agentCall = () => {
     if (!existsSync(join(dir, 'agent.args'))) return null;
     const [name, cwd, ...rest] = readFileSync(join(dir, 'agent.args'), 'utf8').split('|');
@@ -238,7 +270,10 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
     codex: '--dangerously-bypass-approvals-and-sandbox ',
     gemini: '--approval-mode=yolo -i ',
   };
-  const fork = 'repo fork acme/web.app --clone -- web.app';
+  const folder = 'take-my-tokens-web.app';
+  const fork = `repo fork acme/web.app --clone -- ${folder}`;
+  const clone = `repo clone acme/web.app ${folder}`;
+  const push = 'git push -q --dry-run origin HEAD:refs/heads/take-my-tokens-check';
   const comment = `issue comment 7 --repo acme/web.app --body ${CLAIM_COMMENT}`;
 
   for (const shell of shells) {
@@ -248,10 +283,10 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
         const command = localCommand(provider, 'acme/web.app', 7, mode);
         assert.ok(!/[\r\n]/.test(command), 'the command must stay on one line');
         assert.equal(run(command, work, shell), 0);
-        assert.deepEqual(ghCalls(), [fork, comment], 'the claim goes out before the agent starts');
+        assert.deepEqual(toolCalls(), [fork, push, comment], 'the claim goes out before the agent starts, and only if the work could be pushed');
         const { name, cwd, args } = agentCall();
         assert.equal(name, provider);
-        assert.equal(cwd, join(work, 'web.app'));
+        assert.equal(cwd, join(work, folder));
         assert.equal(args, flags[provider] + buildPrompt('acme/web.app', 7) + CLAIM_URL, 'the agent receives the address of its claim');
       }
     }
@@ -260,15 +295,40 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
     {
       const work = mkdtempSync(join(dir, 'work-'));
       assert.equal(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_FORK: '1' }), 0);
-      assert.deepEqual(ghCalls(), [fork, 'repo clone acme/web.app web.app', comment]);
-      assert.equal(agentCall().cwd, join(work, 'web.app'));
+      assert.deepEqual(toolCalls(), [fork, clone, push, comment]);
+      assert.equal(agentCall().cwd, join(work, folder));
+    }
+
+    // Anyone else whose fork failed gets a clone they cannot push to, and neither a claim nor an agent
+    {
+      const work = mkdtempSync(join(dir, 'work-'));
+      assert.notEqual(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_FORK: '1', FAIL_PUSH: '1' }), 0);
+      assert.deepEqual(toolCalls(), [fork, clone, push]);
+      assert.equal(agentCall(), null);
+    }
+
+    // A repository's name cannot choose where its files land
+    {
+      const work = mkdtempSync(join(dir, 'work-'));
+      assert.equal(run(localCommand('claude', 'evil/.bashrc.d', 7), work, shell), 0);
+      assert.ok(!existsSync(join(work, '.bashrc.d')));
+      assert.equal(agentCall().cwd, join(work, 'take-my-tokens-.bashrc.d'));
+    }
+
+    // A checkout of the same name elsewhere on CDPATH is left alone
+    {
+      const work = mkdtempSync(join(dir, 'work-'));
+      const elsewhere = mkdtempSync(join(dir, 'elsewhere-'));
+      mkdirSync(join(elsewhere, folder));
+      assert.equal(run(localCommand('claude', 'acme/web.app', 7), work, shell, { CDPATH: elsewhere }), 0);
+      assert.equal(agentCall().cwd, join(work, folder));
     }
 
     // A missing tool stops everything before anything is forked or posted
     {
       const work = mkdtempSync(join(dir, 'work-'));
       assert.notEqual(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_TOOL: '1' }), 0);
-      assert.deepEqual(ghCalls(), []);
+      assert.deepEqual(toolCalls(), []);
       assert.equal(agentCall(), null);
     }
 
@@ -276,7 +336,7 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
     {
       const work = mkdtempSync(join(dir, 'work-'));
       assert.notEqual(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_FORK: '1', FAIL_CLONE: '1' }), 0);
-      assert.deepEqual(ghCalls(), [fork, 'repo clone acme/web.app web.app']);
+      assert.deepEqual(toolCalls(), [fork, clone]);
       assert.equal(agentCall(), null);
     }
 
@@ -285,6 +345,14 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
       const work = mkdtempSync(join(dir, 'work-'));
       assert.notEqual(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_COMMENT: '1' }), 0);
       assert.equal(agentCall(), null);
+    }
+
+    // What the pull request check of the task counts, through a real grep
+    {
+      const mentions = (body) => run(pullCheck('acme/web.app', 7), dir, shell, { PULLS: JSON.stringify([{ title: 'x', body }]) }) === 0;
+      for (const body of ['Closes #7', 'Closes #7\r\nMore', '#7\nOn its own line', 'See https://github.com/acme/web.app/issues/7.', 'gh-7: fix', 'GH-7'])
+        assert.ok(mentions(body), `should count: ${body}`);
+      for (const body of ['Closes #71', 'Bump to 7.0', 'nothing']) assert.ok(!mentions(body), `should not count: ${body}`);
     }
   }
 

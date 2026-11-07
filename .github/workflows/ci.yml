@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -17,5 +18,5 @@ jobs:
         with:
           node-version: 24
       # The tests run the command through every shell they find, and the page promises bash and zsh.
-      - run: sudo apt-get install -y zsh
+      - run: sudo apt-get update && sudo apt-get install -y zsh
       - run: npm test

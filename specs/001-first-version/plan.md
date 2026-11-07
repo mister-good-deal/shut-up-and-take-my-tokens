@@ -57,6 +57,7 @@ latest comments of the last 24 hours read per project.
 |---|---|
 | Choosing a tool | Contributor Consent: only they know what they run |
 | Paste and Enter | Contributor Consent. It also approves the claim comment, which the visible command posts, so the agent asks nothing for it. |
+| Trusting the new folder | A vendor requires it: Claude Code and Codex ask the first time they open a repository they have not seen, and no flag at the Ask or Less often levels skips it. The claim is already posted by then. |
 
 **Commands first, workflow for the rest** (principle II):
 

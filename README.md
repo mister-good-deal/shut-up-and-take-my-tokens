@@ -9,7 +9,7 @@ Each contributor runs the agent on their own account, in the vendor's own tool. 
 
 AI agents can skip the page: [`llms.txt`](https://mister-good-deal.github.io/shut-up-and-take-my-tokens/llms.txt) tells them how to contribute to a project or set one up, in plain text. Give your agent the permission along with the address, because a careful tool refuses to write to GitHub on the word of a web page alone:
 
-> Spend my spare tokens on the open source project owner/name by following https://mister-good-deal.github.io/shut-up-and-take-my-tokens/llms.txt. You may comment on its issues under my account, push to my fork or clone of it, and open a draft pull request on it.
+> Spend my spare tokens on the open source project owner/name by following https://mister-good-deal.github.io/shut-up-and-take-my-tokens/llms.txt. You may fork it under my account, comment on its issues, push to my fork or clone of it, and open a draft pull request on it.
 
 ## Add it to your project
 
@@ -50,12 +50,15 @@ To change them, change the file. GitHub already handles who may do that, the his
 
 ## What the contributor does
 
-They click the badge, and the page picks an issue nobody is working on. They click their tool, and the page copies one command to paste in bash or zsh. It needs `gh` signed in and the chosen tool. That command:
+They click the badge, and the page picks an issue nobody is working on. They click their tool, and the page copies one command to paste in bash or zsh. It needs `gh` signed in, git able to push through it (`gh auth setup-git`), and the chosen tool. That command:
 
 1. checks the tool is installed;
-2. forks the project into a new folder, or clones it if they own it;
-3. comments on the issue under their GitHub account, to claim it;
-4. starts the agent, with fixed instructions.
+2. forks the project into a new folder named `take-my-tokens-` and the project's name, or clones it if they own it;
+3. checks, pushing nothing, that the work could be pushed from there, so that nothing is claimed for work that could not be delivered;
+4. comments on the issue under their GitHub account, to claim it;
+5. starts the agent, with fixed instructions.
+
+Claude Code and Codex then ask whether you trust the new folder, the first time they open it. That question is theirs and no flag at these levels skips it. The claim is already posted by then, so if you walk away, the issue stays held until the claim expires.
 
 Cloud sessions are not in this version. [The tests behind that decision](specs/001-first-version/research.md) are written down.
 
@@ -67,6 +70,7 @@ There is no coordinator. Everything goes through GitHub, in a way anyone can rea
 - **Taken.** An issue is taken if it has a live claim or an open pull request referencing it. The page only offers the others, at random, so people arriving together spread out.
 - **Conflict.** If two claims land in the same minute, the oldest comment keeps the issue, and the other agent takes another one without asking anyone.
 - **Failure.** An agent that gives up says why on the issue. Its claim stays until it expires, so nobody repeats the attempt right away, and you see the reason.
+- **Done.** A merged pull request that closes the issue ends it. If it only refers to the issue, close the issue when you merge, or the page offers it again.
 
 You get one comment per attempt, and so one notification. To release an issue early, delete the comment.
 
@@ -74,7 +78,7 @@ Claims are cooperative: they keep honest agents apart and stop nobody on purpose
 
 ## How often the agent asks
 
-Before copying the command, the contributor picks how often the agent asks for approval.
+The contributor picks how often the agent asks for approval. Changing it after copying means clicking the tool again, and the page says so.
 
 | Choice | Claude Code | Codex | Gemini CLI | Offered |
 | --- | --- | --- | --- | --- |
@@ -90,7 +94,7 @@ For "Never", the maintainer only decides whether the choice exists. It is the co
 
 ## Security
 
-- The page's URL only accepts a repository and an issue number, both strictly validated. It never takes free text, so a crafted link cannot change the prompt, inject shell commands or turn on `skip_permissions`.
+- The page's URL only accepts a repository and an issue number, both strictly validated. It never takes free text, so a crafted link cannot change the prompt, inject shell commands or turn on `skip_permissions`. The folder always starts with `take-my-tokens-`, so a project named `.bashrc.d` or `bin` cannot choose where its files land.
 - `TAKE_MY_TOKENS.md` is read from the repository the link names, so the page treats it as untrusted: only known keys and exact values count, and nothing from it is copied into a command.
 - Issue titles are only ever displayed, never copied into a command or a prompt.
 - The command is shown before anyone runs it, and pasting it runs nothing until Enter is pressed.
@@ -107,6 +111,7 @@ Not checked yet:
 - **zsh with a real agent.** CI runs the command under bash and zsh with stand-in tools, but the real runs were under bash.
 - **A real agent with no write access.** The sandbox belongs to the account that ran the tests, so its agents used a clone and not a fork. The steps that differ (claim comment, fork, push, draft pull request) were run by hand on a project that account cannot write to, and they work.
 - **The default level with a real agent.** It needs someone at the prompts, and nobody was.
+- **The latest commands in an interactive session.** The last round ran each copied command up to the claim, then the same task without a terminal (`claude -p`, `codex exec`), because the trust question above stops an unattended session. Earlier interactive runs got through it with a person answering, on slightly older commands.
 
 ## Develop
 

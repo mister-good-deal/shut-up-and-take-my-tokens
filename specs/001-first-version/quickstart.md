@@ -41,7 +41,9 @@ Open `http://127.0.0.1:8765/`, with fixtures or a repository that has opted in. 
 
 Skipped checks are reported as skipped, never as passed. Real agents run on the sandbox repository
 `mister-good-deal/take-my-tokens-sandbox`, which the account owns, so they go through the clone and not a fork (research R10). The
-Ask level needs a person at the prompts, so real runs use "Less often" unless one is watching.
+Ask level needs a person at the prompts, so real runs use "Less often" unless one is watching. Claude Code and Codex also stop on a
+trust question in a repository they have not seen, so a run nobody watches goes through the claim with the copied command, then
+hands the same task to `claude -p` or `codex exec`.
 
 | # | Scenario | Expected |
 |---|---|---|

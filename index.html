@@ -105,8 +105,12 @@
     font: .9375rem/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+    /* One click takes the whole text. A triple click would take a trailing newline too, and pasting that runs the command with no Enter. */
+    -webkit-user-select: all;
+    user-select: all;
   }
-  .error { margin: 0 0 1.5rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--paper); color: var(--ink); font-weight: 700; }
+  .error { margin: 0 0 1.5rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--paper); color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
+  .error a { color: var(--ink); }
   [hidden] { display: none !important; }
 
   @media (max-width: 52rem) {
