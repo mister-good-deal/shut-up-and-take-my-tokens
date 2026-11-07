@@ -1,0 +1,9 @@
+{
+  "name": "shut-up-and-take-my-tokens",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node lib.test.mjs"
+  }
+}
