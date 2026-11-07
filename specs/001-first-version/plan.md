@@ -94,7 +94,7 @@ llms.txt                    # New: plain-text instructions for agents
 fonts/                      # New: 3 woff2 files and their licence
 TAKE_MY_TOKENS.md           # New: this project's own opt-in
 README.md                   # Status, badge, verified behaviour only
-.github/workflows/ci.yml    # Unchanged
+.github/workflows/ci.yml    # Installs zsh, so the tests run the command under it too
 .github/workflows/pages.yml # New: test, copy served files, deploy
 ```
 
@@ -122,7 +122,8 @@ the listed ones are copied to `_site`.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |---|---|---|
-| Principle VIII: a capability must be checked "signed in as a contributor without write access to the target repository". The end-to-end pull request runs on a sandbox repository the maintainer's organisation owns, so the contributor has write access there. | The maintainer's account owns every project it could create. Accepted by the maintainer at GATE 2. | A second account was offered and not chosen. Checking only the steps separately would prove less. |
+| Principle VIII: a capability must be checked "signed in as a contributor without write access to the target repository". Real agents run on a sandbox repository the maintainer's account owns, so they have write access there. | The account owns every project it could create and owns no organisation. Accepted by the maintainer. | A second account and an organisation were offered and not chosen. |
 
-The fork path itself uses no write access on the project, but that is inferred and not observed, and the README says so, as
-principle VIII requires of anything unverified.
+Every step that differs for a non-collaborator was run by hand on `octocat/Spoon-Knife`, with no write access: claim comment, fork,
+push and draft pull request ([research R10](research.md)). What is not observed is a real agent running the whole loop that way, and
+the README says so, as principle VIII requires of anything unverified.

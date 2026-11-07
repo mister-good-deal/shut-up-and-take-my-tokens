@@ -39,12 +39,13 @@ Open `http://127.0.0.1:8765/`, with fixtures or a repository that has opted in. 
 
 ## On the real products
 
-Skipped checks are reported as skipped, never as passed. P1 to P4 run on the sandbox repository in the maintainer's
-organisation (research R10).
+Skipped checks are reported as skipped, never as passed. Real agents run on the sandbox repository
+`mister-good-deal/take-my-tokens-sandbox`, which the account owns, so they go through the clone and not a fork (research R10). The
+Ask level needs a person at the prompts, so real runs use "Less often" unless one is watching.
 
 | # | Scenario | Expected |
 |---|---|---|
-| P1 | Claude Code, Ask level, real run | Claim comment posted by the command, then draft pull request from the fork, issue linked, AI agent stated |
+| P1 | Claude Code, real run of the copied command | Claim comment posted by the command, then draft pull request, issue linked, AI agent stated |
 | P2 | Same with Codex | Same |
 | P3 | Started on an issue with no label, or one already taken, others available | Agent moves to another, with no question and nothing pushed for the first |
 | P4 | Project owned by the person running it | Command reaches a clone, delivery still works |
@@ -53,6 +54,7 @@ organisation (research R10).
 | P7 | Public address after publishing | Same as local, from this project's own badge, with a live count on the badge |
 | P8 | Two real agents, Claude Code and Codex, started on the same issue within the same minute, two issues approved | They end up on different issues, nothing asked of anyone about the claim, and the page then offers neither (SC-009) |
 | P9 | An agent stops on a deliberately vague issue | It says why on the issue, and the page does not offer it while the claim is live |
+| P10 | By hand on `octocat/Spoon-Knife`, without write access: claim comment, renamed fork, push, draft pull request | All work. Done on 2026-11-07, see research R10 |
 
-**Not coverable here**: Gemini CLI is not installed, so it is marked unverified on the page. A contributor truly without write
-access is not observed; the README says so.
+**Not coverable here**: Gemini CLI is not installed, so it is marked unverified on the page. A real agent running the whole loop as
+a non-collaborator is not observed; the README says so.

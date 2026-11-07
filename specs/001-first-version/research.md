@@ -180,12 +180,42 @@ tools. An agent working past 24 hours without a pull request could be joined by 
 **How sure the workflow part is**: agents are told the exact commands and when to stop, and P8 runs the race for real with two
 different tools. That gives near certainty and not proof, which is why the first claim and the issue pick are not left to them.
 
-**Not observed yet**: a claim posted by a true non-collaborator (R10). GitHub lets any account comment on an unlocked public
-issue, but the sandbox run is made with write access.
+## R12. What real agents did
+
+Real runs on 2026-11-07, on `mister-good-deal/take-my-tokens-sandbox`, with the commands the page copies at the "Less often" level.
+
+| Run | Result |
+|---|---|
+| Claude Code and Codex on issue #1, started in the same second | The claims landed one second apart. Claude Code held the older one and delivered draft pull request #7. Codex read that it had lost, moved to #4 with no question, claimed it and delivered #9 |
+| Claude Code started on #6, not approved | Left it alone, moved to #2, delivered #8 |
+| Claude Code started on #5, deliberately vague | Explained on the issue what was missing and stopped, leaving its claim |
+| The page afterwards, untouched files, real GitHub | "1 issue free, 4 being worked on", offering #3, the only free one |
+| Claude Code given only the `llms.txt` address | Followed it up to the claim, where the auto mode of Claude Code refused the comment as an external write. **Correct behaviour**: the request came from a web page, not its owner |
+| Same, with the owner's permission in the sentence | Found #3, the only issue free, claimed it, delivered draft pull request #10 |
+| Claude Code asked about `octocat/Spoon-Knife`, which has no file, with `llms.txt` only and read-only orders | Answered that the project has not opened itself to agents and stopped there. Asking it to write was refused by this session's permission system, so this run only shows the stop, not a stop from a run allowed to write |
+| Claude Code with the copied setup command, the maintainer answering | 3 questions, the project board one skipped as there is none. Recommended against running without prompts and, when the maintainer chose it anyway for the test, flagged that in the pull request. Pull request #11 holds the file and the badge with the right repository, and the page reads the file |
+| Claude Code asked to set up a clone of the sandbox with `llms.txt` only, its answers in the sentence, local files only | Wrote a `TAKE_MY_TOKENS.md` based on the repository and the badge with the right repository, and the page reads the file as `claude, codex`, no skip. It also warned that issues outside the approved list still carried the label. The label and the pull request were left out on purpose |
+
+**What changed because of this**: the README gives the sentence to tell your agent, with the permission in it, and `llms.txt` tells an agent to stop and ask its owner when its tool refuses.
+
+**Environment notes**: the first Codex attempt failed before doing anything, because the default model of this machine's `~/.codex/config.toml` is refused for a ChatGPT account. It reran with `-m gpt-6-luna` and the same task. Codex's `--approve-for-me` sandbox blocks the network at first, and its automatic review then allowed the `gh` commands. Without flags, each tool uses its owner's own settings, so "before anything risky" is only as cautious as those.
 
 ## R10. Contributor who cannot be simulated
 
-**Decision at GATE 2**: principle VIII asks for a check "as a contributor without write access", on a project that has opted
-in, and this account owns every such project it could create. The end-to-end pull request runs on a sandbox repository in an
-organisation the maintainer creates. The fork path uses no write access on the project, but that is inferred and not
-observed, and the README says so.
+**Decision**: principle VIII asks for a check "as a contributor without write access", on a project that has opted in, and this
+account owns every such project it could create, and owns no organisation. So the check has two halves:
+
+- **Real agents, end to end**, on a sandbox repository the account owns. This covers the claims, the race and the delivery, through
+  the owner's clone.
+- **Every step that differs for a non-collaborator, run by hand** on `octocat/Spoon-Knife`, where the API reports `push`, `triage`
+  and `admin` all false, with the maintainer's approval:
+
+| Step | Result |
+|---|---|
+| `CLAIM=$(gh issue comment 42131 --repo octocat/Spoon-Knife --body …)` | Works, returns the comment's address (comment deleted right after) |
+| `gh issue view … --json comments` and the anonymous API | Both find the claim |
+| `gh repo fork … --clone -- Spoon-Knife`, with the fork renamed | Folder right, `origin` is the fork |
+| `git fetch https://github.com/octocat/Spoon-Knife.git HEAD`, branch, push to `origin` | Works |
+| `gh pr create --draft --repo octocat/Spoon-Knife --head mister-good-deal:take-my-tokens-test-3` | Draft pull request [#42133](https://github.com/octocat/Spoon-Knife/pull/42133), closed right after |
+
+**The gap that remains**: a real agent running the whole loop as a non-collaborator has not been observed. The README says so.

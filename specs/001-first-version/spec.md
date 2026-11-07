@@ -18,7 +18,7 @@
 - Q: Who picks the issue when the badge names none? → A: The page does, at random among the issues nobody is working on, so that contributors arriving together spread out. No choice is asked of the contributor.
 - Q: How do dozens of agents run by different people avoid working on the same issue, with no server? → A: The copied command claims the issue with a comment before the agent starts, under the contributor's account. The page reads recent claims and offers something else. If two claims land in the same minute, the earliest comment keeps the issue and the other agent moves on by itself. A claim expires after 24 hours, unless a pull request has taken over by then.
 - Q: What is a command, and what is an instruction to the agent? → A: Safe, deterministic commands and tested code come first: picking the issue, forking and the first claim. What has to adapt at run time is a workflow in the agent's task, with ordered steps, exact commands and explicit stops: checking who won the claim and moving to another issue.
-- Q: How is the check as a contributor without write access done, when the maintainer's account owns every project it could create? → A: On a sandbox repository in an organisation the maintainer creates. The fork path is exercised for real, but with write access on the project. The maintainer accepted this gap at GATE 2, and the README states it.
+- Q: How is the check as a contributor without write access done, when the maintainer's account owns every project it could create? → A: In two halves. Real agents run end to end on a sandbox repository the account owns. Every step that differs for a non-collaborator (claim comment, fork, push, draft pull request) is run by hand on `octocat/Spoon-Knife`, where the account has no write access. The maintainer accepted this, and the README states what remains unobserved: a real agent running the whole loop as a non-collaborator.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -132,7 +132,7 @@ Anyone can reach the page at a stable public address, and this project itself ca
 
 ### Edge Cases
 
-- The contributor already has a fork, or a folder with the project's name in the current directory: the command stops with the tool's own message and changes nothing.
+- The contributor already has a fork: the command reuses it. A folder with the project's name in the current directory: the command stops with the tool's own message, before any comment is posted.
 - The contributor owns the project or can already write to it, for instance a maintainer trying their own badge: the command still reaches a working clone.
 - The contributor's fork is behind the project: the agent works from the project's current state.
 - The contributor renamed their fork: the command still clones it into a folder named after the project.
@@ -224,7 +224,7 @@ FR-012 to FR-017 described the cloud path, which left this version at GATE 2 (se
 ### Measurable Outcomes
 
 - **SC-001**: A contributor with a tool and GitHub access already set up goes from the badge to a copied command in 2 clicks, and to a running agent with one paste.
-- **SC-002**: A contributor gets a draft pull request from their fork on an opted-in project, verified with a real agent on a sandbox repository, with the write access they hold there stated in the README.
+- **SC-002**: A contributor gets a draft pull request on an opted-in project, verified with a real agent on a sandbox repository, and each step specific to a non-collaborator verified by hand on a repository they cannot write to. The README states what remains unobserved.
 - **SC-003**: Removed with the cloud path.
 - **SC-004**: A maintainer goes from nothing to a reviewable pull request with everything set up by running one command and answering at most 5 questions.
 - **SC-005**: 100% of a set of crafted links and malformed files fail to change the command or what is offered.

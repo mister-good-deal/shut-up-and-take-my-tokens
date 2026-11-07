@@ -7,7 +7,9 @@ A badge for open source READMEs. Whoever clicks it spends their spare Claude, Co
 
 Each contributor runs the agent on their own account, in the vendor's own tool. Nothing here handles credentials, pools accounts or runs a server: it is one static page that builds a command.
 
-AI agents can skip the page: [`llms.txt`](https://mister-good-deal.github.io/shut-up-and-take-my-tokens/llms.txt) tells them how to contribute to a project or set one up, in plain text.
+AI agents can skip the page: [`llms.txt`](https://mister-good-deal.github.io/shut-up-and-take-my-tokens/llms.txt) tells them how to contribute to a project or set one up, in plain text. Give your agent the permission along with the address, because a careful tool refuses to write to GitHub on the word of a web page alone:
+
+> Spend my spare tokens on the open source project owner/name by following https://mister-good-deal.github.io/shut-up-and-take-my-tokens/llms.txt. You may comment on its issues under my account, push to my fork or clone of it, and open a draft pull request on it.
 
 ## Add it to your project
 
@@ -76,9 +78,11 @@ Before copying the command, the contributor picks how often the agent asks for a
 
 | Choice | Claude Code | Codex | Gemini CLI | Offered |
 | --- | --- | --- | --- | --- |
-| Before anything risky (default) | no flag | no flag | no flag | Always |
+| As your tool is set up, normally before anything risky (default) | no flag | no flag | no flag | Always |
 | Less often | `--permission-mode auto` | `--approve-for-me` | `--approval-mode=auto_edit` | Always |
 | Never | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` | `--approval-mode=yolo` | Only with `skip_permissions: true` |
+
+With no flag, the tool uses its owner's own settings, so the default is only as careful as those.
 
 "Less often" keeps a safeguard: Claude Code and Codex route approvals through an automatic review, and Gemini CLI approves edits but still asks before commands. If Claude Code's auto mode is unavailable, the session starts with normal prompts.
 
@@ -92,6 +96,17 @@ For "Never", the maintainer only decides whether the choice exists. It is the co
 - The command is shown before anyone runs it, and pasting it runs nothing until Enter is pressed.
 - The agent runs the project's code on the contributor's machine, so they should only spend tokens on projects they would be willing to clone and run.
 - The label and claim checks guide agents that follow the rules. Review these pull requests like any other.
+
+## What has been checked
+
+Claude Code and Codex ran for real on a [sandbox repository](https://github.com/mister-good-deal/take-my-tokens-sandbox), at the "Less often" level. Two agents started on the same issue ended up on different ones, an unapproved issue was left alone, a vague one got an explanation instead of a pull request, and the others got draft pull requests. [The results](specs/001-first-version/research.md) are written down.
+
+Not checked yet:
+
+- **Gemini CLI.** It was not installed where this was tested, and the page says so.
+- **zsh with a real agent.** CI runs the command under bash and zsh with stand-in tools, but the real runs were under bash.
+- **A real agent with no write access.** The sandbox belongs to the account that ran the tests, so its agents used a clone and not a fork. The steps that differ (claim comment, fork, push, draft pull request) were run by hand on a project that account cannot write to, and they work.
+- **The default level with a real agent.** It needs someone at the prompts, and nobody was.
 
 ## Develop
 
