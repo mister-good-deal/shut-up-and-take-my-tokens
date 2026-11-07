@@ -111,7 +111,7 @@ the listed ones are copied to `_site`.
 - **Claims** ([research R11](research.md)): the page only reads them. The copied command writes the first one under the
   contributor's account and hands its address to the agent, which writes any further one. There is no release step: a claim expires by age, and an agent that stops leaves it in place, so nobody repeats a failed
   attempt right away. The race is settled in the agent, because only the agent can write; the random pick only makes it rare.
-- **`RULES` and `CLAIM`**: exported text used by the task and checked against `llms.txt`.
+- **`RULES` and `claimSteps`**: exported text used by the task and checked against `llms.txt`.
 - **Badge**: shields' count by label, so the README shows live work. It needs no code of ours.
 - **Setup task**: three or four questions, under the limit in SC-004: tools, running without prompts, the project board if
   there is one, and which proposed issues to approve. It tells the maintainer that each labelled issue is room for one agent.

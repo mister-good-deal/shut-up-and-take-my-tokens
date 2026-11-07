@@ -70,7 +70,7 @@ a claim.
 ## Task for the agent
 
 1. Identify the work: issue N of R, with your claim comment's address at the end of the task.
-2. Claim workflow (`CLAIM`), before changing anything, with exact commands:
+2. Claim workflow (`claimSteps`), before changing anything, with exact commands:
    - Run `gh issue view N --repo R --json state,labels,comments` and `gh pr list --repo R --state open --search N`.
    - The issue is yours only if it is open, labelled `take-my-tokens`, referenced by no open pull request, and the earliest
      comment starting with `take-my-tokens:claim` younger than 24 hours is yours, compared by address.
@@ -95,4 +95,4 @@ Plain text at the site root, with these sections:
    own permissions unless your owner told you to.
 3. **Set up a repository**: the setup steps.
 
-`CLAIM`, `RULES`, the delivery and the setup steps appear verbatim, and `npm test` fails otherwise.
+`claimSteps`, `RULES`, the delivery and the setup steps appear verbatim, and `npm test` fails otherwise.

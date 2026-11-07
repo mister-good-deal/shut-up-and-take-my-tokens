@@ -1,10 +1,14 @@
 // Run with: node lib.test.mjs
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { PROVIDERS, buildPrompt, cloudUrl, localCommand, parseOptions, parseParams, setupCommand, setupPrompt, shellQuote } from './lib.js';
+import {
+  CLAIM_COMMENT, MARKER, PROVIDERS, RULES, badge, buildPrompt, claimSteps, commentsUrl, deliverySteps, instructionsUrl, issuesUrl,
+  liveClaims, localCommand, pageState, parseOptions, parseParams, pickIssue, pullsUrl, referencedIssues, setupCommand, setupPrompt,
+  setupSteps, shellQuote,
+} from './lib.js';
 
 const search = (repo, issue) => new URLSearchParams({ repo, ...(issue === undefined ? {} : { issue }) }).toString();
 
@@ -14,25 +18,23 @@ assert.deepEqual(parseParams(search('acme/.github', '12')), { repo: 'acme/.githu
 assert.ok(parseParams('').empty);
 
 // Anything that could smuggle shell syntax is refused
-for (const repo of ['a/b;rm -rf ~', 'a/b c', '$(id)/b', 'a/`id`', 'a/b&&id', 'a/b|id', "a/b'", 'a/..', 'a/.', '-a/b', 'a/-b', 'a/b\n', 'a/b/c', 'a', ''])
-  assert.ok(parseParams(search(repo)).error, `repo should be refused: ${JSON.stringify(repo)}`);
-for (const issue of ['1;id', '0', '-1', '1 2', '$(id)', '1\n', ''])
-  assert.ok(parseParams(search('a/b', issue)).error, `issue should be refused: ${JSON.stringify(issue)}`);
+const craftedRepos = ['a/b;rm -rf ~', 'a/b c', '$(id)/b', 'a/`id`', 'a/b&&id', 'a/b|id', "a/b'", 'a/..', 'a/.', '-a/b', 'a/-b', 'a/b\n', 'a/b/c', 'a', ''];
+const craftedIssues = ['1;id', '0', '-1', '1 2', '$(id)', '1\n', ''];
+for (const repo of craftedRepos) assert.ok(parseParams(search(repo)).error, `repo should be refused: ${JSON.stringify(repo)}`);
+for (const issue of craftedIssues) assert.ok(parseParams(search('a/b', issue)).error, `issue should be refused: ${JSON.stringify(issue)}`);
 
 // A link can never turn the dangerous option on
-assert.deepEqual(parseParams('repo=a/b&skip_permissions=true&cloud=false'), { repo: 'a/b', issue: null });
+assert.deepEqual(parseParams('repo=a/b&skip_permissions=true&providers=evil'), { repo: 'a/b', issue: null });
 
 // Maintainer options: safe defaults, and only exact values count
 const allProviders = Object.keys(PROVIDERS);
-const defaults = { cloud: true, providers: allProviders, skip_permissions: false };
+const defaults = { providers: allProviders, skip_permissions: false };
 const front = (body) => `---\n${body}\n---\n# Instructions\n`;
 assert.deepEqual(parseOptions('# No front matter\n'), defaults);
 assert.deepEqual(parseOptions(''), defaults);
 assert.deepEqual(parseOptions('# Title\n---\nskip_permissions: true\n---\n'), defaults, 'front matter only counts at the top');
-assert.deepEqual(
-  parseOptions(front('cloud: false\nproviders: claude, gemini\nskip_permissions: true')),
-  { cloud: false, providers: ['claude', 'gemini'], skip_permissions: true },
-);
+assert.deepEqual(parseOptions(front('providers: claude, gemini\nskip_permissions: true')), { providers: ['claude', 'gemini'], skip_permissions: true });
+assert.deepEqual(parseOptions(front('cloud: false')), defaults, 'unknown keys are ignored');
 assert.deepEqual(parseOptions('---\r\nskip_permissions: true\r\n---\r\n').skip_permissions, true);
 assert.deepEqual(parseOptions(front('providers: [codex]')).providers, ['codex']);
 assert.deepEqual(parseOptions(front('providers:')).providers, []);
@@ -40,40 +42,187 @@ assert.deepEqual(parseOptions(front('providers: claude, evil; rm -rf ~, __proto_
 for (const value of ['TRUE', 'yes', '1', 'true # sure', '"true"', ''])
   assert.equal(parseOptions(front(`skip_permissions: ${value}`)).skip_permissions, false, `should stay off: ${value}`);
 
+// Issues already referenced by an open pull request
+assert.deepEqual(
+  [...referencedIssues([{ title: 'Fix #3', body: null }, { title: 'x', body: 'See https://github.com/a/b/issues/4 and #5, not #x or 6' }])],
+  [3, 4, 5],
+);
+
+// Claims: the marker at the very start, younger than 24 hours, on a well-formed issue
+const now = Date.parse('2026-11-07T12:00:00Z');
+const HOUR = 3600 * 1000;
+const claim = (issue, ageHours, body = CLAIM_COMMENT) => ({
+  body,
+  issue_url: `https://api.github.com/repos/a/b/issues/${issue}`,
+  created_at: new Date(now - ageHours * HOUR).toISOString(),
+});
+assert.ok(CLAIM_COMMENT.startsWith(MARKER));
+assert.deepEqual([...liveClaims([claim(1, 1), claim(2, 23.9), claim(3, 24), claim(4, 30)], now)], [1, 2], 'a claim ends at 24 hours');
+assert.deepEqual([...liveClaims([claim(1, 1, `Quoting: ${MARKER}`), claim(2, 1, null), claim(3, 1, 'nothing')], now)], [], 'the marker must start the body');
+assert.deepEqual([...liveClaims([{ ...claim(1, 1), issue_url: 'https://evil.test/issues/1;id' }, { ...claim(2, 1), created_at: 'soon' }], now)], [], 'malformed comments count for nothing');
+assert.match(commentsUrl('a/b', now), /since=2026-11-06T12:00:00\.000Z/);
+
+// Picking the issue
+const issue = (number, extra = {}) => ({ number, title: `Issue ${number}`, ...extra });
+const pick = (over) => pickIssue({ named: null, issues: [issue(1), issue(2), issue(3)], pulls: [], claims: new Set(), random: () => 0, ...over });
+assert.equal(pick({}).issue.number, 1);
+assert.equal(pick({ random: () => 0.99 }).issue.number, 3, 'visitors spread over the available issues');
+assert.deepEqual(pick({ claims: new Set([1]) }).counts, { available: 2, taken: 1 });
+assert.equal(pick({ claims: new Set([1]) }).issue.number, 2, 'a claimed issue is not offered');
+assert.equal(pick({ pulls: [{ title: 'Fix #1', body: '' }] }).issue.number, 2, 'an issue with an open pull request is not offered');
+assert.equal(pick({ issues: [issue(1, { pull_request: {} }), issue(2)] }).issue.number, 2, 'pull requests are not issues');
+assert.deepEqual(pick({ issues: [issue(1, { pull_request: {} }), issue(2)] }).counts, { available: 1, taken: 0 });
+assert.equal(pick({ issues: [issue('1;id'), issue(2)] }).issue.number, 2, 'only integer numbers can reach a command');
+assert.equal(pick({ claims: new Set([1, 2, 3]) }).issue, null);
+assert.equal(pick({ issues: [] }).issue, null);
+assert.deepEqual(pick({ named: '2' }), { issue: issue(2), counts: { available: 3, taken: 0 }, namedProblem: null });
+assert.deepEqual(pick({ named: '2', claims: new Set([2]) }), { issue: issue(1), counts: { available: 2, taken: 1 }, namedProblem: 'taken' });
+assert.deepEqual(pick({ named: '9' }), { issue: issue(1), counts: { available: 3, taken: 0 }, namedProblem: 'not-approved' });
+assert.equal(pick({ named: '2', issues: [issue(2)], claims: new Set([2]) }).issue, null);
+
+// What the page shows, against a fake GitHub
+const FILE = instructionsUrl('a/b');
+function fakeGitHub({ file = front('providers: claude'), fileStatus = 200, issues = [issue(1)], pulls = [], comments = [], apiStatus = 200 } = {}) {
+  const calls = [];
+  const respond = (status, body) => ({
+    status,
+    ok: status < 400,
+    text: async () => body,
+    json: async () => body,
+  });
+  const fetchFn = async (url) => {
+    calls.push(url);
+    if (url === FILE) return respond(fileStatus, file);
+    if (url === issuesUrl('a/b')) return respond(apiStatus, issues);
+    if (url === pullsUrl('a/b')) return respond(apiStatus, pulls);
+    if (url === commentsUrl('a/b', now)) return respond(apiStatus, comments);
+    throw new Error(`unexpected request: ${url}`);
+  };
+  return { fetchFn, calls };
+}
+const state = (query, github = fakeGitHub()) => pageState(query, github.fetchFn, now, () => 0);
+
+assert.deepEqual(await state(''), { view: 'setup' });
+{
+  const github = fakeGitHub();
+  assert.ok((await state('repo=a/b;id', github)).error);
+  assert.equal(github.calls.length, 0, 'an invalid link reaches nothing');
+}
+{
+  const github = fakeGitHub({ fileStatus: 404 });
+  assert.deepEqual(await state('repo=a/b', github), { view: 'setup', repo: 'a/b', reason: 'no-file' });
+  assert.deepEqual(github.calls, [FILE], 'a project without the file spends no API call');
+}
+{
+  const github = fakeGitHub({ file: front('providers:') });
+  assert.deepEqual(await state('repo=a/b', github), { view: 'refused', repo: 'a/b', reason: 'off' });
+  assert.deepEqual(github.calls, [FILE], 'a project that turned everything off spends no API call');
+}
+assert.equal((await state('repo=a/b', fakeGitHub({ fileStatus: 500 }))).reason, 'unreadable');
+assert.equal((await state('repo=a/b', fakeGitHub({ apiStatus: 403 }))).reason, 'unreadable', 'the limit on anonymous requests offers nothing');
+assert.equal((await state('repo=a/b', fakeGitHub({ issues: { message: 'nope' } }))).reason, 'unreadable');
+assert.equal((await state('repo=a/b', { fetchFn: async () => { throw new TypeError('offline'); } })).reason, 'unreadable');
+assert.deepEqual(await state('repo=a/b', fakeGitHub({ issues: [] })), { view: 'refused', repo: 'a/b', reason: 'none-approved', counts: { available: 0, taken: 0 } });
+assert.deepEqual(await state('repo=a/b', fakeGitHub({ comments: [claim(1, 2)] })), { view: 'refused', repo: 'a/b', reason: 'all-taken', counts: { available: 0, taken: 1 } });
+assert.equal((await state('repo=a/b', fakeGitHub({ comments: [claim(1, 30)] }))).view, 'task', 'an expired claim frees the issue');
+assert.equal((await state('repo=a/b', fakeGitHub({ comments: [claim(1, 30)], pulls: [{ title: '#1', body: '' }] }))).reason, 'all-taken', 'an open pull request outlives its claim');
+{
+  const task = await state('repo=a/b&issue=1', fakeGitHub({ issues: [issue(1), issue(2)], comments: [claim(1, 1)] }));
+  assert.equal(task.view, 'task');
+  assert.equal(task.issue.number, 2);
+  assert.equal(task.namedProblem, 'taken');
+  assert.deepEqual(task.options, { providers: ['claude'], skip_permissions: false });
+}
+
+// Crafted links change neither what is offered nor the command
+{
+  const plain = await state('repo=a/b');
+  for (const extra of ['&skip_permissions=true', '&providers=evil', '&prompt=rm%20-rf', '&mode=skip', '&cloud=true', '&command=id'])
+    assert.deepEqual(await state(`repo=a/b${extra}`), plain, `should change nothing: ${extra}`);
+  for (const repo of craftedRepos) assert.equal((await state(search(repo))).view, 'setup', `should offer nothing: ${JSON.stringify(repo)}`);
+}
+
 // Quoting survives a real shell
 const evil = `it's $(touch /tmp/x) \`id\` "q" \\ ; rm -rf ~\nline2`;
 assert.equal(execFileSync('bash', ['-c', `printf %s ${shellQuote(evil)}`], { encoding: 'utf8' }), evil);
 
-// Prompts carry the task and the right delivery instructions
-assert.match(buildPrompt('a/b', '7', 'local'), /issue #7 of a\/b/);
-assert.match(buildPrompt('a/b', null, 'local'), /oldest open issue of a\/b labelled take-my-tokens/);
-assert.match(buildPrompt('a/b', null, 'cloud'), /repos\/a\/b\/forks/);
-assert.match(buildPrompt('a/b', null, 'local'), /gh pr create --draft --repo a\/b/);
-for (const prompt of [buildPrompt('a/b', '7', 'local'), buildPrompt('a/b', '7', 'cloud'), setupPrompt('https://x.test/')])
-  assert.ok(!prompt.includes("'"), 'prompts avoid apostrophes so the quoted command stays readable');
+// The task carries the workflow, with exact commands and concrete values
+{
+  const prompt = buildPrompt('a/b', 7);
+  assert.match(prompt, /Your issue is #7/);
+  assert.match(prompt, /gh issue view 7 --repo a\/b --json state,labels,comments/);
+  assert.match(prompt, /gh pr create --draft --repo a\/b --head OWNER:BRANCH/);
+  assert.match(prompt, /git fetch https:\/\/github\.com\/a\/b\.git HEAD/);
+  assert.ok(prompt.includes(CLAIM_COMMENT), 'moving on posts the same claim');
+  for (const rule of RULES) assert.ok(prompt.includes(rule));
+  assert.ok(prompt.endsWith('Your claim comment for issue #7: '), 'the address comes last, added by the command');
+  for (const text of [prompt, CLAIM_COMMENT, setupPrompt('https://x.test/')])
+    assert.ok(!text.includes("'"), 'prompts avoid apostrophes so the quoted command stays readable');
+}
 
-// The cloud link decodes back to the exact prompt and repo
-const url = new URL(cloudUrl('a/b', '7'));
-assert.equal(url.origin + url.pathname, 'https://claude.ai/code');
-assert.equal(url.searchParams.get('prompt'), buildPrompt('a/b', '7', 'cloud'));
-assert.equal(url.searchParams.get('repositories'), 'a/b');
-assert.ok(!url.href.includes(' '));
+// The badge counts approved issues live and names no issue
+assert.equal(
+  badge('https://x.test/', 'a/b'),
+  '[![take my tokens](https://img.shields.io/github/issues/a/b/take-my-tokens?label=take%20my%20tokens&color=E5B53F)](https://x.test/?repo=a/b)',
+);
 
-// The local command works end to end against stub CLIs, without touching GitHub
+// The setup asks little
+assert.ok(setupSteps('https://x.test/').filter((step) => /\?(\s|$)/.test(step)).length <= 5, 'at most 5 questions');
+assert.ok(!/cloud/i.test(setupPrompt('https://x.test/')));
+
+// The instructions for agents say exactly what the page tells them
+{
+  const llms = readFileSync(new URL('./llms.txt', import.meta.url), 'utf8');
+  const shared = [
+    ...claimSteps('R', 'N'), ...deliverySteps('R'), ...RULES, CLAIM_COMMENT,
+    ...setupSteps('https://mister-good-deal.github.io/shut-up-and-take-my-tokens/'),
+  ];
+  for (const text of shared) assert.ok(llms.includes(text), `llms.txt has drifted from: ${text}`);
+}
+
+// The page reaches no third party on its own
+{
+  const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+  assert.match(html, /http-equiv="Content-Security-Policy"/);
+  assert.match(html, /script-src 'self';/);
+  assert.ok(!/<script(?![^>]*\ssrc=)/.test(html), 'no inline script');
+  assert.ok(!/(?:src|href)="https?:|url\(https?:/.test(html), 'no remote resource');
+  for (const font of html.matchAll(/url\((fonts\/[^)]+)\)/g)) assert.ok(existsSync(new URL(`./${font[1]}`, import.meta.url)), `missing ${font[1]}`);
+}
+
+// The local command works end to end against stub CLIs, without touching GitHub, in every shell it targets
 const dir = mkdtempSync(join(tmpdir(), 'take-my-tokens-'));
 try {
   const stub = (name, body) => {
     writeFileSync(join(dir, name), `#!/bin/bash\n${body}\n`);
     chmodSync(join(dir, name), 0o755);
   };
-  stub('gh', 'printf "%s\\n" "$*" > "$OUT_DIR/gh.args"; mkdir -p "${3##*/}"');
-  for (const name of ['claude', 'codex', 'gemini']) stub(name, `printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
+  const CLAIM_URL = 'https://github.com/acme/web.app/issues/7#issuecomment-99';
+  stub('gh', `printf "%s\\n" "$*" >> "$OUT_DIR/gh.log"
+case "$1 $2" in
+  "repo fork") [ -z "$FAIL_FORK" ] && mkdir "$6" ;;
+  "repo clone") [ -z "$FAIL_CLONE" ] && mkdir "$4" ;;
+  "issue comment") [ -z "$FAIL_COMMENT" ] && echo "${CLAIM_URL}" ;;
+esac`);
+  for (const name of allProviders) {
+    stub(name, `if [ "$1" = "--version" ]; then [ -z "$FAIL_TOOL" ]; exit; fi
+printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
+  }
 
-  const run = (command, cwd) => execFileSync('bash', ['-c', command], {
-    cwd,
-    env: { ...process.env, PATH: dir + delimiter + process.env.PATH, OUT_DIR: dir },
-  });
+  const shells = ['bash', 'zsh'].filter((shell) => spawnSync(shell, ['--version']).status === 0);
+  const reset = () => {
+    for (const file of ['gh.log', 'agent.args']) rmSync(join(dir, file), { force: true });
+  };
+  const run = (command, cwd, shell = 'bash', env = {}) => {
+    reset();
+    return spawnSync(shell, ['-c', command], {
+      cwd,
+      env: { ...process.env, PATH: dir + delimiter + process.env.PATH, OUT_DIR: dir, ...env },
+    }).status;
+  };
+  const ghCalls = () => (existsSync(join(dir, 'gh.log')) ? readFileSync(join(dir, 'gh.log'), 'utf8').trim().split('\n') : []);
   const agentCall = () => {
+    if (!existsSync(join(dir, 'agent.args'))) return null;
     const [name, cwd, ...rest] = readFileSync(join(dir, 'agent.args'), 'utf8').split('|');
     return { name, cwd, args: rest.join('|') };
   };
@@ -89,23 +238,61 @@ try {
     codex: '--dangerously-bypass-approvals-and-sandbox ',
     gemini: '--approval-mode=yolo -i ',
   };
+  const fork = 'repo fork acme/web.app --clone -- web.app';
+  const comment = `issue comment 7 --repo acme/web.app --body ${CLAIM_COMMENT}`;
+
+  for (const shell of shells) {
+    for (const provider of allProviders) {
+      for (const [mode, flags] of [['ask', safeArgs], ['auto', autoArgs], ['skip', skipArgs]]) {
+        const work = mkdtempSync(join(dir, 'work-'));
+        const command = localCommand(provider, 'acme/web.app', 7, mode);
+        assert.ok(!/[\r\n]/.test(command), 'the command must stay on one line');
+        assert.equal(run(command, work, shell), 0);
+        assert.deepEqual(ghCalls(), [fork, comment], 'the claim goes out before the agent starts');
+        const { name, cwd, args } = agentCall();
+        assert.equal(name, provider);
+        assert.equal(cwd, join(work, 'web.app'));
+        assert.equal(args, flags[provider] + buildPrompt('acme/web.app', 7) + CLAIM_URL, 'the agent receives the address of its claim');
+      }
+    }
+
+    // A contributor who owns the project cannot fork it, and still reaches a clone and a claim
+    {
+      const work = mkdtempSync(join(dir, 'work-'));
+      assert.equal(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_FORK: '1' }), 0);
+      assert.deepEqual(ghCalls(), [fork, 'repo clone acme/web.app web.app', comment]);
+      assert.equal(agentCall().cwd, join(work, 'web.app'));
+    }
+
+    // A missing tool stops everything before anything is forked or posted
+    {
+      const work = mkdtempSync(join(dir, 'work-'));
+      assert.notEqual(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_TOOL: '1' }), 0);
+      assert.deepEqual(ghCalls(), []);
+      assert.equal(agentCall(), null);
+    }
+
+    // Without a clone, for instance because the folder exists, no comment goes out
+    {
+      const work = mkdtempSync(join(dir, 'work-'));
+      assert.notEqual(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_FORK: '1', FAIL_CLONE: '1' }), 0);
+      assert.deepEqual(ghCalls(), [fork, 'repo clone acme/web.app web.app']);
+      assert.equal(agentCall(), null);
+    }
+
+    // Without a claim, for instance on a locked issue, no agent starts
+    {
+      const work = mkdtempSync(join(dir, 'work-'));
+      assert.notEqual(run(localCommand('claude', 'acme/web.app', 7), work, shell, { FAIL_COMMENT: '1' }), 0);
+      assert.equal(agentCall(), null);
+    }
+  }
 
   for (const provider of allProviders) {
-    for (const [mode, flags] of [['ask', safeArgs], ['auto', autoArgs], ['skip', skipArgs]]) {
-      const work = mkdtempSync(join(dir, 'work-'));
-      const command = localCommand(provider, 'acme/web.app', '7', mode);
-      assert.ok(!/[\r\n]/.test(command), 'the command must stay on one line');
-      run(command, work);
-      assert.equal(readFileSync(join(dir, 'gh.args'), 'utf8'), 'repo fork acme/web.app --clone\n');
-      const { name, cwd, args } = agentCall();
-      assert.equal(name, provider);
-      assert.equal(cwd, join(work, 'web.app'));
-      assert.equal(args, flags[provider] + buildPrompt('acme/web.app', '7', 'local'));
-    }
-    assert.equal(localCommand(provider, 'a/b', null), localCommand(provider, 'a/b', null, 'ask'), 'asking is the default');
     for (const mode of ['ask', 'auto']) {
-      assert.ok(!/danger|yolo/.test(localCommand(provider, 'a/b', null, mode)), `${mode} must keep its safeguards`);
+      assert.ok(!/danger|yolo/.test(localCommand(provider, 'a/b', 7, mode)), `${mode} must keep its safeguards`);
     }
+    assert.equal(localCommand(provider, 'a/b', 7), localCommand(provider, 'a/b', 7, 'ask'), 'asking is the default');
 
     // The maintainer setup command runs where it is pasted and never skips approvals
     const work = mkdtempSync(join(dir, 'work-'));
