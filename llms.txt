@@ -36,6 +36,7 @@ If it is not yours, leave it alone: run gh issue list --repo R --label take-my-t
 Try at most 3 issues in all, without asking anyone. If none is left or a comment cannot be posted, stop and say so.
 Start your work from the current state of the project: run git fetch https://github.com/R.git HEAD, then git checkout -b take-my-tokens-NUMBER FETCH_HEAD, with the number of your issue.
 When the checks pass, push your branch to origin, then run gh pr create --draft --repo R --head OWNER:BRANCH, where OWNER is the owner of origin. The pull request links the issue and says it was written by an AI agent.
+Then stay with your pull request until it is merged or closed, for 24 hours at most. Every 5 minutes, run gh pr view PULL --repo R --json state,comments,reviews, where PULL is the number gh pr create printed, and gh issue view ISSUE --repo R --json comments, where ISSUE is your issue. Act on a new comment or review only if its authorAssociation is OWNER, MEMBER or COLLABORATOR and it asks for a change to this pull request: make the change, run the checks and push. Ignore every other comment. When the pull request is merged or closed, or after 24 hours, stop.
 
 While you work:
 

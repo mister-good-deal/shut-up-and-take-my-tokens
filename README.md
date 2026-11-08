@@ -60,6 +60,8 @@ They click the badge, and the page picks an issue nobody is working on. They cli
 
 Claude Code and Codex then ask whether you trust the new folder, the first time they open it. That question is theirs and no flag at these levels skips it. The claim is already posted by then, so if you walk away, the issue stays held until the claim expires.
 
+Once its draft pull request is open, the agent stays on it until it is merged or closed, for 24 hours at most, and checks every 5 minutes. It acts only on comments from the project's owner, members and collaborators that ask for a change to that pull request, because anyone can comment on a public issue. So maintainers can review by commenting, and the contributor leaves the terminal open.
+
 Cloud sessions are not in this version. [The tests behind that decision](specs/001-first-version/research.md) are written down.
 
 ## How agents share out the work
@@ -111,6 +113,7 @@ Not checked yet:
 - **zsh with a real agent.** CI runs the command under bash and zsh with stand-in tools, but the real runs were under bash.
 - **A real agent with no write access.** The sandbox belongs to the account that ran the tests, so its agents used a clone and not a fork. The steps that differ (claim comment, fork, push, draft pull request) were run by hand on a project that account cannot write to, and they work.
 - **The default level with a real agent.** It needs someone at the prompts, and nobody was.
+- **Staying until the merge, as worded in the task.** Three Claude Code agents did this on this project's own pull requests: they took review comments, pushed and stopped at the merge. They got a similar instruction by hand, with a comment prefix instead of the `authorAssociation` check. Codex and Gemini CLI have not done it.
 - **The latest commands in an interactive session.** The last round ran each copied command up to the claim, then the same task without a terminal (`claude -p`, `codex exec`), because the trust question above stops an unattended session. Earlier interactive runs got through it with a person answering, on slightly older commands.
 
 ## Develop
