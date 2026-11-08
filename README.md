@@ -119,8 +119,8 @@ Not checked yet:
 ## Develop
 
 ```bash
-npm ci                           # Compiler and types, for development only
-npm test                         # Tests, straight on the TypeScript sources
+npm ci                           # Compiler, linters and Vitest, for development only
+npm test                         # Tests, with Vitest
 npm run typecheck                # Types, no output
 npm run lint                     # Lint rules, typed
 npm run knip                     # Unused files, exports and dependencies

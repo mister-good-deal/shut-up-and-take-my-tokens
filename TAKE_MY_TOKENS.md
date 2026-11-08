@@ -8,7 +8,7 @@ One static page: `index.html`, the `page` module for the DOM, and the `lib` modu
 
 ## Before you open a pull request
 
-- Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run knip`. Every non-trivial branch of logic needs a test.
+- Run `npm ci`, then `npm test`, `npm run typecheck`, `npm run lint` and `npm run knip`. Every non-trivial branch of logic needs a test.
 - If you changed the page, serve it as the README's Develop section says and check the affected states in a real browser, at phone width too.
 - If you changed a task or a rule in the `lib` module, change `llms.txt` to match: `npm test` fails otherwise.
 
