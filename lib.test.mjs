@@ -10,7 +10,7 @@ import {
   referencedIssues, setupCommand, setupPrompt, setupSteps, shellQuote,
 } from './lib.js';
 
-const search = (repo, issue) => new URLSearchParams({ repo, ...(issue === undefined ? {} : { issue }) }).toString();
+const search = (/** @type {string} */ repo, /** @type {string=} */ issue) => new URLSearchParams({ repo, ...(issue === undefined ? {} : { issue }) }).toString();
 
 // Valid input
 assert.deepEqual(parseParams(search('acme/web.app_2')), { repo: 'acme/web.app_2', issue: null });
@@ -79,7 +79,8 @@ assert.deepEqual([...liveClaims([{ ...claim(1, 1), issue_url: 'https://evil.test
 assert.match(commentsUrl('a/b', now), /since=2026-11-06T12:00:00\.000Z/);
 
 // Picking the issue
-const issue = (number, extra = {}) => ({ number, title: `Issue ${number}`, ...extra });
+const issue = (/** @type {number | string} */ number, extra = {}) => ({ number, title: `Issue ${number}`, ...extra });
+/** @type {(over: object) => { issue: { number: number }, counts: object }} */
 const pick = (over) => pickIssue({ repo: 'a/b', named: null, issues: [issue(1), issue(2), issue(3)], pulls: [], claims: new Set(), random: () => 0, ...over });
 assert.equal(pick({}).issue.number, 1);
 assert.equal(pick({ random: () => 0.99 }).issue.number, 3, 'visitors spread over the available issues');
@@ -101,19 +102,19 @@ assert.equal(pick({ named: '2', issues: [issue(2)], claims: new Set([2]) }).issu
 const FILE = instructionsUrl('a/b');
 function fakeGitHub({ file = front('providers: claude'), fileStatus = 200, issues = [issue(1)], pulls = [], comments = [], apiStatus = 200 } = {}) {
   const calls = [];
-  const respond = (status, body) => ({
+  const respond = (/** @type {number} */ status, /** @type {unknown} */ body) => Promise.resolve({
     status,
     ok: status < 400,
-    text: async () => body,
-    json: async () => body,
+    text: () => Promise.resolve(body),
+    json: () => Promise.resolve(body),
   });
-  const fetchFn = async (url) => {
+  const fetchFn = (/** @type {string} */ url) => {
     calls.push(url);
     if (url === FILE) return respond(fileStatus, file);
     if (url === issuesUrl('a/b')) return respond(apiStatus, issues);
     if (url === pullsUrl('a/b')) return respond(apiStatus, pulls);
     if (url === commentsUrl('a/b', now)) return respond(apiStatus, comments);
-    throw new Error(`unexpected request: ${url}`);
+    return Promise.reject(new Error(`unexpected request: ${url}`));
   };
   return { fetchFn, calls };
 }
@@ -138,7 +139,7 @@ assert.deepEqual(await state(''), { view: 'setup' });
 assert.equal((await state('repo=a/b', fakeGitHub({ fileStatus: 500 }))).reason, 'unreadable');
 assert.equal((await state('repo=a/b', fakeGitHub({ apiStatus: 403 }))).reason, 'unreadable', 'the limit on anonymous requests offers nothing');
 assert.equal((await state('repo=a/b', fakeGitHub({ issues: { message: 'nope' } }))).reason, 'unreadable');
-assert.equal((await state('repo=a/b', { fetchFn: async () => { throw new TypeError('offline'); } })).reason, 'unreadable');
+assert.equal((await state('repo=a/b', { fetchFn: () => Promise.reject(new TypeError('offline')) })).reason, 'unreadable');
 assert.deepEqual(await state('repo=a/b', fakeGitHub({ issues: [] })), { view: 'refused', repo: 'a/b', reason: 'none-approved', counts: { available: 0, taken: 0 } });
 assert.deepEqual(await state('repo=a/b', fakeGitHub({ comments: [claim(1, 2)] })), { view: 'refused', repo: 'a/b', reason: 'all-taken', counts: { available: 0, taken: 1 } });
 assert.equal((await state('repo=a/b', fakeGitHub({ comments: [claim(1, 30)] }))).view, 'task', 'an expired claim frees the issue');
@@ -146,7 +147,7 @@ assert.equal((await state('repo=a/b', fakeGitHub({ comments: [claim(1, 30)], pul
 {
   const task = await state('repo=a/b&issue=1', fakeGitHub({ issues: [issue(1), issue(2)], comments: [claim(1, 1)] }));
   assert.equal(task.view, 'task');
-  assert.equal(task.issue.number, 2);
+  assert.equal(/** @type {{ issue: { number: number } }} */ (task).issue.number, 2);
   assert.equal(task.namedProblem, 'taken');
   assert.deepEqual(task.options, { providers: ['claude'], skip_permissions: false });
 }
@@ -203,7 +204,7 @@ assert.ok(!/cloud/i.test(setupPrompt('https://x.test/')));
   for (const text of commands) assert.ok(llms.includes(`    ${text}\n`), `llms.txt has drifted from: ${text}`);
   // What stops an agent comes before what leaves a trace, as on the page
   const order = ['providers line', listCommand('R'), prepareSteps('R', 'FOLDER')[0], 'gh issue comment N'].map((text) => llms.indexOf(text));
-  assert.ok(order[0] >= 0 && order.every((at, index) => index === 0 || at > order[index - 1]), `llms.txt steps are out of order: ${order}`);
+  assert.ok(order[0] >= 0 && order.every((at, index) => index === 0 || at > order[index - 1]), `llms.txt steps are out of order: ${order.join()}`);
   assert.match(llms, /Do not widen your own permissions/);
 }
 
@@ -221,7 +222,7 @@ assert.ok(!/cloud/i.test(setupPrompt('https://x.test/')));
 // realpath because the shell reports the real path, and a temporary folder can sit behind a symlink, as it does on macOS.
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'take-my-tokens-')));
 try {
-  const stub = (name, body) => {
+  const stub = (/** @type {string} */ name, /** @type {string} */ body) => {
     writeFileSync(join(dir, name), `#!/bin/bash\n${body}\n`);
     chmodSync(join(dir, name), 0o755);
   };
@@ -245,7 +246,7 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
     for (const file of ['calls.log', 'agent.args']) rmSync(join(dir, file), { force: true });
   };
   // PATH is set inside the command: startup files (BASH_ENV, ~/.zshenv) run before it and could put the real gh and agents back ahead of the stubs.
-  const run = (command, cwd, shell = 'bash', env = {}) => {
+  const run = (/** @type {string} */ command, /** @type {string} */ cwd, shell = 'bash', /** @type {Record<string, string>} */ env = {}) => {
     reset();
     return spawnSync(shell, ['-c', `PATH=${shellQuote(dir)}:"$PATH"; ${command}`], {
       cwd,
@@ -349,7 +350,7 @@ printf "%s" "${name}|$PWD|$*" > "$OUT_DIR/agent.args"`);
 
     // What the pull request check of the task counts, through a real grep
     {
-      const mentions = (body) => run(pullCheck('acme/web.app', 7), dir, shell, { PULLS: JSON.stringify([{ title: 'x', body }]) }) === 0;
+      const mentions = (/** @type {string} */ body) => run(pullCheck('acme/web.app', 7), dir, shell, { PULLS: JSON.stringify([{ title: 'x', body }]) }) === 0;
       for (const body of ['Closes #7', 'Closes #7\r\nMore', '#7\nOn its own line', 'See https://github.com/acme/web.app/issues/7.', 'gh-7: fix', 'GH-7'])
         assert.ok(mentions(body), `should count: ${body}`);
       for (const body of ['Closes #71', 'Bump to 7.0', 'nothing']) assert.ok(!mentions(body), `should not count: ${body}`);

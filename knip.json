@@ -1,0 +1,3 @@
+{
+  "entry": ["page.{js,ts}", "*.test.mjs", "tests/**/*.test.ts"]
+}
