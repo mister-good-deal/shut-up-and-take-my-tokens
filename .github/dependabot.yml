@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # A version that turns out to be malicious is usually pulled within days.
+    cooldown:
+      default-days: 7
+    groups:
+      dev-tools:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # typescript-eslint refuses anything from 6.1 up: see issue #18.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]

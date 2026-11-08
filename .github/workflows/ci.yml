@@ -1,62 +1,158 @@
 name: CI
 
+# One workflow from the pull request to the release: on main, the page and the tag only follow a run that passed.
 on:
   push:
     branches: [main]
   pull_request:
-  workflow_call:
 
-permissions:
-  contents: read
+permissions: {}
+
+# A new push replaces the run of a pull request. On main nothing is cancelled, so that a deployment always finishes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: 24
 
 jobs:
-  test:
+  checks:
+    name: ${{ matrix.script }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        script: [test:coverage, lint, typecheck, knip, build, changelog]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: 24
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       # The tests run the command through every shell they find, and the page promises bash and zsh.
-      - run: sudo apt-get update && sudo apt-get install -y zsh
-      - run: npm test
+      - if: matrix.script == 'test:coverage'
+        run: sudo apt-get update && sudo apt-get install -y zsh
+      - run: npm ci --ignore-scripts
+      - run: npm run "$SCRIPT"
+        env:
+          SCRIPT: ${{ matrix.script }}
 
-  lint:
+  supply-chain:
+    name: workflows and dependencies
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run lint
+          persist-credentials: false
+      - uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # 1.7.12
+        with:
+          args: -color
+      - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with:
+          advanced-security: false
+      # Not on main: an advisory about a development tool must not stop the page from being published.
+      - if: github.event_name == 'pull_request'
+        run: npm audit --audit-level=high
 
-  typecheck:
+  # The one check to require before merging, whatever the list above becomes.
+  ok:
+    if: always()
+    needs: [checks, supply-chain]
     runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions: {}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run typecheck
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
 
-  knip:
+  # Installing the tools runs third-party code, so this job cannot publish anything: only the next one can.
+  build:
+    if: github.event_name == 'push'
+    needs: ok
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run knip
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      # Only what the page needs goes public, and a symbolic link could bring in a file from outside the repository.
+      - run: mkdir _site && cp -r index.html page.js lib.js llms.txt fonts _site/ && test -z "$(find _site -type l)"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: _site
 
-  coverage:
+  publish:
+    needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+
+  # The version in package.json decides: a new one gets its tag and its release, and any other push changes nothing.
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run test:coverage
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Before the token enters the job's steps.
+      - run: node scripts/changelog.ts > notes.md
+      - name: Tag and release a new version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(node -p 'require("./package.json").version')"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag is already released"
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file notes.md
+          fi
+
+  # Minor and patch updates of the npm tools merge once every check has passed. Major ones and actions wait for the maintainer.
+  dependabot:
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    needs: ok
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      - if: steps.meta.outputs.package-ecosystem == 'npm_and_yarn' && (steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULL_REQUEST: ${{ github.event.pull_request.html_url }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: gh pr merge "$PULL_REQUEST" --squash --match-head-commit "$HEAD"

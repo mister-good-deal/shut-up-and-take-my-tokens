@@ -119,13 +119,15 @@ Not checked yet:
 ## Develop
 
 ```bash
-npm ci                           # Compiler and types, for development only
-npm test                         # Tests, straight on the TypeScript sources
+npm ci                           # Compiler, linters and Vitest, for development only
+npm test                         # Tests, with Vitest
 npm run typecheck                # Types, no output
 npm run lint                     # Lint rules, typed
 npm run knip                     # Unused files, exports and dependencies
 npm run build                    # Writes lib.js and page.js: the page needs them to be served
 python3 -m http.server 8000      # Then open http://localhost:8000/?repo=owner/name
 ```
+
+To release, change `version` in `package.json` and give it a section in `CHANGELOG.md`. Once that reaches `main`, CI tags the version and publishes the section as the release notes.
 
 Not affiliated with Anthropic, OpenAI or Google.
