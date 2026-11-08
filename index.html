@@ -3,12 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src https://raw.githubusercontent.com https://api.github.com; base-uri 'none'; form-action 'none'">
 <title>Shut up and take my tokens</title>
 <meta name="description" content="Spend your spare Claude, Codex or Gemini quota on an open source project: start an agent that opens a pull request.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link rel="alternate" type="text/plain" href="llms.txt" title="Instructions for AI agents">
 <style>
+  @font-face { font-family: "Alfa Slab One"; font-weight: 400; font-display: swap; src: url(fonts/alfa-slab-one-400.woff2) format("woff2"); }
+  @font-face { font-family: "Atkinson Hyperlegible"; font-weight: 400; font-display: swap; src: url(fonts/atkinson-hyperlegible-400.woff2) format("woff2"); }
+  @font-face { font-family: "Atkinson Hyperlegible"; font-weight: 700; font-display: swap; src: url(fonts/atkinson-hyperlegible-700.woff2) format("woff2"); }
   :root {
     --enamel: #1737a6;
     --ink: #0a1650;
@@ -52,7 +54,7 @@
   @media (prefers-reduced-motion: reduce) { .token.flip { animation: none; } }
 
   #content { grid-column: 1; max-width: 42rem; }
-  .pitch { margin: 0 0 2.5rem; font-size: 1.375rem; line-height: 1.4; }
+  .pitch { margin: 0 0 1rem; font-size: 1.375rem; line-height: 1.4; overflow-wrap: anywhere; }
   .pitch b { color: var(--brass); }
   .choice { margin-bottom: 2rem; }
   .note { margin: .75rem 0 0; color: var(--mist); }
@@ -82,9 +84,9 @@
   summary::-webkit-details-marker { display: none; }
   .providers { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; }
   .providers .push { font-size: 1.0625rem; padding: .6rem 1.1rem; }
-  .providers .push[aria-pressed="true"] { background: var(--brass); box-shadow: 0 .375rem 0 var(--brass-deep); }
+  .providers .push[aria-pressed="true"] { background: var(--paper); box-shadow: 0 .375rem 0 var(--mist); }
 
-  .modes { margin: 1.25rem 0 0; padding: 0; border: 0; }
+  .modes { margin: 1.5rem 0 0; padding: 0; border: 0; }
   .modes legend { padding: 0; font-weight: 700; }
   .modes label { display: flex; gap: .625rem; align-items: flex-start; margin-top: .5rem; cursor: pointer; }
   .modes input { flex: none; width: 1.25rem; height: 1.25rem; margin: .1875rem 0 0; accent-color: var(--brass); }
@@ -103,8 +105,12 @@
     font: .9375rem/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+    /* One click takes the whole text. A triple click would take a trailing newline too, and pasting that runs the command with no Enter. */
+    -webkit-user-select: all;
+    user-select: all;
   }
-  .error { margin: 0 0 1.5rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--paper); color: var(--ink); font-weight: 700; }
+  .error { margin: 0 0 1.5rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--paper); color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
+  .error a { color: var(--ink); }
   [hidden] { display: none !important; }
 
   @media (max-width: 52rem) {
@@ -128,35 +134,32 @@
   </svg>
 
   <div id="content">
+    <noscript><p class="error">This page needs JavaScript. AI agents can use the plain-text instructions at <a href="llms.txt">llms.txt</a> instead.</p></noscript>
+
     <section id="task" hidden>
       <p class="pitch" id="pitch"></p>
+      <p class="note" id="work"></p>
 
-      <div class="choice" id="cloud-choice">
-        <a class="push" id="cloud" target="_blank" rel="noopener">Start in the cloud</a>
-        <p class="note">Opens Claude Code on claude.ai with the task filled in. Press send and close the tab: the session keeps running. Needs GitHub connected to your Claude account.</p>
-      </div>
-
-      <details class="choice" id="local">
-        <summary class="push plain">Run it locally</summary>
+      <div class="choice" id="run" hidden>
+        <p class="note">Pick your tool to copy the command for bash or zsh. It claims the issue with a comment under your GitHub account, then the agent runs this project's code on your machine. If someone got there first, the agent moves to another issue.</p>
+        <div class="providers" id="providers"></div>
+        <pre id="command" tabindex="0" hidden></pre>
+        <p class="note" id="status" role="status"></p>
         <fieldset class="modes" id="modes">
           <legend>How often should the agent ask you?</legend>
-          <label><input type="radio" name="mode" value="ask" checked> Before anything risky</label>
+          <label><input type="radio" name="mode" value="ask" checked> As your tool is set up, normally before anything risky</label>
           <label><input type="radio" name="mode" value="auto"> Less often: routine actions go through on their own</label>
           <div class="danger" id="skip-option" hidden>
             <label><input type="radio" name="mode" value="skip"> Never: run without approval prompts</label>
             <p>The agent runs any command without asking, with everything your user account can reach, while reading code and text anyone can write on this repository. Only choose this in a container or a throwaway VM.</p>
           </div>
         </fieldset>
-        <p class="note">Pick your tool to copy the command for bash or zsh.</p>
-        <div class="providers" id="providers"></div>
-        <pre id="command" tabindex="0" hidden></pre>
-        <p class="note" id="status" role="status"></p>
-      </details>
+      </div>
     </section>
 
     <section id="install" hidden>
       <p class="error" id="error" role="alert" hidden></p>
-      <p class="pitch">Let people spend their spare Claude, Codex or Gemini quota on your project. Each one runs an agent on their own subscription and it opens a draft pull request.</p>
+      <p class="pitch">Let people spend their spare Claude, Codex or Gemini quota on your project. Each one runs an agent on their own subscription, and it opens a draft pull request.</p>
 
       <div class="choice">
         <p>Let your own agent set it up: it asks you a few questions and opens a pull request. Pick your tool, then run the command at the root of your repository.</p>
@@ -170,152 +173,24 @@
         <ol>
           <li>Add <code>TAKE_MY_TOKENS.md</code> at the root of your repository. The page offers nothing until this file exists.
             <pre tabindex="0">---
-cloud: true
 providers: claude, codex, gemini
 skip_permissions: false
 ---
 How to install and test this project, what is out of scope, pull request conventions.</pre>
           </li>
-          <li>Label the issues agents may work on with <code>take-my-tokens</code>.</li>
-          <li>Add this badge to your README, with your repository in the link. Add <code>&amp;issue=12</code> to point at one issue.
+          <li>Label the issues agents may work on with <code>take-my-tokens</code>. Each one is room for one agent at a time, so the label sets the pace.</li>
+          <li>Add this badge to your README, with your repository in both places. It shows how many issues are open to agents, and the page hands each visitor a different one. To point at one issue from elsewhere, add <code>&amp;issue=12</code> to the link.
             <pre id="snippet" tabindex="0"></pre>
           </li>
         </ol>
+        <p class="note">For the rest, use GitHub itself: a project board to follow the work, and your repository settings to limit incoming contributions.</p>
       </details>
     </section>
+
+    <p class="note">AI agents: <a href="llms.txt">plain-text instructions</a> cover all of this, no browser needed.</p>
   </div>
 </main>
 
-<script type="module">
-  import { PROVIDERS, badge, cloudUrl, instructionsUrl, localCommand, parseOptions, parseParams, setupCommand } from './lib.js';
-
-  const $ = (id) => document.getElementById(id);
-  const pageUrl = location.origin + location.pathname;
-
-  function stampToken(ring, center) {
-    const circumference = 2 * Math.PI * 77;
-    const stamp = `${ring} ★ `;
-    const fitting = Math.round(circumference / 8.6);
-    const text = stamp.repeat(Math.max(1, Math.round(fitting / stamp.length)));
-    $('stamp').textContent = text;
-    $('stamp').setAttribute('textLength', circumference);
-    // Short stamps open up their letter spacing; only long ones get their glyphs squeezed.
-    $('stamp').setAttribute('lengthAdjust', text.length > fitting ? 'spacingAndGlyphs' : 'spacing');
-    $('center').textContent = center;
-    if (center.length > 4) $('center').setAttribute('textLength', 100);
-  }
-
-  function flipToken() {
-    const token = $('token');
-    token.classList.remove('flip');
-    token.getBoundingClientRect();
-    token.classList.add('flip');
-  }
-
-  async function copyCommand(command, box, status, afterCopy) {
-    box.textContent = command;
-    box.hidden = false;
-    try {
-      await navigator.clipboard.writeText(command);
-      status.textContent = `Copied. ${afterCopy}`;
-      flipToken();
-    } catch {
-      status.textContent = `Your browser blocked copying. Select the command above and copy it. ${afterCopy}`;
-    }
-    status.scrollIntoView({ block: 'nearest' });
-  }
-
-  function addProviderButtons(container, providers, onPick) {
-    for (const provider of providers) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'push plain';
-      button.setAttribute('aria-pressed', 'false');
-      button.textContent = PROVIDERS[provider].label;
-      button.addEventListener('click', () => {
-        for (const other of container.children) other.setAttribute('aria-pressed', String(other === button));
-        onPick(provider);
-      });
-      container.append(button);
-    }
-  }
-
-  function showInstall(error) {
-    stampToken('shut up and take my tokens', 'T');
-    $('install').hidden = false;
-    if (error) {
-      $('error').textContent = error;
-      $('error').hidden = false;
-    }
-    $('snippet').textContent = badge(pageUrl);
-    addProviderButtons($('setup-providers'), Object.keys(PROVIDERS), (provider) => {
-      copyCommand(setupCommand(provider, pageUrl), $('setup-command'), $('setup-status'),
-        `Run it at the root of your repository. Needs ${PROVIDERS[provider].bin} and a signed-in gh.`);
-    });
-  }
-
-  function showTask(repo, issue, options) {
-    stampToken(repo, issue ? `#${issue}` : 'any');
-    $('task').hidden = false;
-
-    const pitch = $('pitch');
-    const name = document.createElement('b');
-    name.textContent = repo;
-    const canRun = options.cloud || options.providers.length > 0;
-    $('cloud-choice').hidden = !options.cloud;
-    $('local').hidden = options.providers.length === 0;
-    if (!canRun) {
-      pitch.append('The maintainers of ', name, ' have turned off every way to run an agent.');
-      return;
-    }
-    pitch.append(
-      'An AI agent works on ', name,
-      issue ? `, issue #${issue},` : ', on the next issue its maintainers opened to agents,',
-      ' with your own subscription, and opens a draft pull request.',
-    );
-
-    $('cloud').href = cloudUrl(repo, issue);
-    $('cloud').addEventListener('click', flipToken);
-
-    $('skip-option').hidden = !options.skip_permissions;
-    // The clipboard holds the previous choice, so a changed mode must not leave that command on show.
-    $('modes').addEventListener('change', () => {
-      $('command').hidden = true;
-      $('status').textContent = '';
-      for (const button of $('providers').children) button.setAttribute('aria-pressed', 'false');
-    });
-
-    addProviderButtons($('providers'), options.providers, (provider) => {
-      const { label, bin } = PROVIDERS[provider];
-      const mode = document.querySelector('input[name="mode"]:checked').value;
-      const how = { ask: '', auto: ' with fewer prompts', skip: ' without approval prompts' }[mode];
-      copyCommand(localCommand(provider, repo, issue, mode), $('command'), $('status'),
-        `Paste it into your terminal: it forks ${repo} into a new folder, then starts ${label}${how}. Needs ${bin} and a signed-in gh.`);
-    });
-    $('local').addEventListener('toggle', () => {
-      if ($('local').open) $('providers').scrollIntoView({ block: 'nearest' });
-    });
-  }
-
-  async function readInstructions(repo) {
-    const response = await fetch(instructionsUrl(repo));
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.text();
-  }
-
-  const { empty, error, repo, issue } = parseParams(location.search);
-  if (empty || error) {
-    showInstall(error);
-  } else {
-    try {
-      const markdown = await readInstructions(repo);
-      if (markdown === null) showInstall(`${repo} has no TAKE_MY_TOKENS.md, so its maintainers have not opened it to agents.`);
-      else showTask(repo, issue, parseOptions(markdown));
-    } catch {
-      showInstall(`Could not check ${repo}. Check your connection and reload the page.`);
-    }
-  }
-</script>
+<script type="module" src="page.js"></script>
 </body>
 </html>
