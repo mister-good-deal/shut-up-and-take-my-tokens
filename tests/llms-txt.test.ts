@@ -22,7 +22,7 @@ test('llms.txt holds the exact commands of the page', () => {
 
 test('llms.txt puts what stops an agent before what leaves a trace, as on the page', () => {
   const order = ['providers line', listCommand('R'), prepareSteps('R', 'FOLDER')[0]!, 'gh issue comment N'].map((text) => llms.indexOf(text));
-  assert.ok(order[0]! >= 0 && order.every((at, index) => index === 0 || at > order[index - 1]!), `llms.txt steps are out of order: ${order}`);
+  assert.ok(order[0]! >= 0 && order.every((at, index) => index === 0 || at > order[index - 1]!), `llms.txt steps are out of order: ${order.join()}`);
 });
 
 test('llms.txt forbids widening permissions', () => {

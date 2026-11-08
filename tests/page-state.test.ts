@@ -42,7 +42,7 @@ test('an answer that is not a list offers nothing', async () => {
 });
 
 test('a network failure offers nothing', async () => {
-  assert.equal(reasonOf(await state('repo=a/b', { fetchFn: async () => { throw new TypeError('offline'); } })), 'unreadable');
+  assert.equal(reasonOf(await state('repo=a/b', { fetchFn: () => Promise.reject(new TypeError('offline')) })), 'unreadable');
 });
 
 test('a project with no approved issue is refused', async () => {

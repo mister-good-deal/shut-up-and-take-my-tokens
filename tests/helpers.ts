@@ -24,19 +24,19 @@ export const FILE = instructionsUrl('a/b');
 type GitHub = { file?: string; fileStatus?: number; issues?: unknown; pulls?: unknown; comments?: unknown; apiStatus?: number };
 export function fakeGitHub({ file = front('providers: claude'), fileStatus = 200, issues = [issue(1)], pulls = [], comments = [], apiStatus = 200 }: GitHub = {}) {
   const calls: string[] = [];
-  const respond = (status: number, body: unknown) => ({
+  const respond = (status: number, body: unknown) => Promise.resolve({
     status,
     ok: status < 400,
-    text: async () => body as string,
-    json: async () => body,
+    text: () => Promise.resolve(body as string),
+    json: () => Promise.resolve(body),
   });
-  const fetchFn = async (url: string) => {
+  const fetchFn = (url: string) => {
     calls.push(url);
     if (url === FILE) return respond(fileStatus, file);
     if (url === issuesUrl('a/b')) return respond(apiStatus, issues);
     if (url === pullsUrl('a/b')) return respond(apiStatus, pulls);
     if (url === commentsUrl('a/b', now)) return respond(apiStatus, comments);
-    throw new Error(`unexpected request: ${url}`);
+    return Promise.reject(new Error(`unexpected request: ${url}`));
   };
   return { fetchFn, calls };
 }

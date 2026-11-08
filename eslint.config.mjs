@@ -9,11 +9,13 @@ export default defineConfig(
   tseslint.configs.recommendedTypeChecked,
   {
     languageOptions: {
-      globals: { console: 'readonly', performance: 'readonly', process: 'readonly' },
       parserOptions: { project: './tsconfig.eslint.json', tsconfigRootDir: import.meta.dirname },
     },
     plugins: { '@stylistic': stylistic },
     rules: {
+      '@typescript-eslint/no-floating-promises': ['error', {
+        allowForKnownSafeCalls: [{ from: 'package', name: ['test', 'describe'], package: 'node:test' }],
+      }],
       '@stylistic/indent': ['error', 2],
       '@stylistic/quotes': ['error', 'single', { avoidEscape: true, allowTemplateLiterals: 'always' }],
       '@stylistic/semi': ['error', 'always'],

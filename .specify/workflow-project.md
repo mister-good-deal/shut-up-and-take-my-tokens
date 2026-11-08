@@ -14,7 +14,8 @@
 
 ## PROJECT GATES
 
-- Always: `npm test`, which CI also runs on every pull request. Read its output rather than its exit code.
+- Always: `npm test`, `npm run typecheck`, `npm run lint` and `npm run knip`, which CI also runs on every pull request.
+  Read their output rather than their exit code.
 - When `index.html` changes: a pass in a real browser (`terminal-browser`) covering the affected states, the clipboard
   content, crafted links and a phone width.
 - When a link to a vendor's product changes: check it on the real product, signed in as a contributor without write

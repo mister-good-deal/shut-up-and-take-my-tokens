@@ -68,7 +68,7 @@ function showSetup(error: string | undefined) {
   }
   $('snippet').textContent = badge(pageUrl);
   addProviderButtons($('setup-providers'), Object.keys(PROVIDERS) as ProviderName[], (provider) => {
-    copyCommand(setupCommand(provider, pageUrl), $('setup-command'), $('setup-status'),
+    void copyCommand(setupCommand(provider, pageUrl), $('setup-command'), $('setup-status'),
       `Run it at the root of your repository. Needs ${PROVIDERS[provider].bin} and a signed-in gh.`);
   });
 }
@@ -116,7 +116,7 @@ function showTask({ repo, options, issue, counts, namedProblem }: Extract<PageSt
     const { label, bin } = PROVIDERS[provider];
     const mode = (document.querySelector('input[name="mode"]:checked') as HTMLInputElement).value as Mode;
     const how = { ask: '', auto: ' with fewer prompts', skip: ' without approval prompts' }[mode];
-    copyCommand(localCommand(provider, repo, issue.number, mode), $('command'), $('status'),
+    void copyCommand(localCommand(provider, repo, issue.number, mode), $('command'), $('status'),
       `Paste it into your terminal: it forks ${repo} into a new folder, claims the issue, then starts ${label}${how}. ${label} may first ask whether you trust that folder. Needs ${bin}, a signed-in gh, and git able to push through it (gh auth setup-git).`);
   });
 }

@@ -1,9 +1,7 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true,
-    "allowJs": true,
-    "module": "nodenext",
-    "types": ["node"]
+    "allowJs": true
   },
   "include": ["*.ts", "*.mjs", "tests/**/*.ts"]
 }
