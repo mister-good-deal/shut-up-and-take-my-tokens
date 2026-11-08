@@ -242,7 +242,7 @@ export default tsEslint.config(
     {
         // Same 40-line rule as Tatami.
         name: "house rules",
-        files: ["*.ts", "tests/**/*.ts"],
+        files: ["*.ts", "scripts/**/*.ts", "tests/**/*.ts"],
         plugins: { house },
         rules: {
             "house/max-fn-lines": ["error", { max: 40 }]

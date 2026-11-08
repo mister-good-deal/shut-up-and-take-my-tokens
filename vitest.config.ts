@@ -9,7 +9,7 @@ export default defineConfig({
         coverage: {
             provider: "v8",
             reporter: ["text"],
-            include: ["lib.ts", "page.ts"]
+            include: ["lib.ts", "page.ts", "scripts/*.ts"]
         }
     }
 });

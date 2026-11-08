@@ -1,5 +1,6 @@
 {
   "name": "shut-up-and-take-my-tokens",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -10,6 +11,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "knip": "knip",
+    "changelog": "node scripts/changelog.ts",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {

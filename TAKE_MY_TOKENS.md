@@ -20,10 +20,14 @@ The open issues here are worked on at the same time, one agent each, and each is
 - Before you open your pull request, rebase on the project's latest `main` and make everything pass again, including checks that arrived since you started. Whoever lands second fixes what the first one changed, such as an import path.
 - If `package.json` or `package-lock.json` conflict, keep both sides and run `npm install`.
 
+## Example issues
+
+#19, #20 and #21 are examples, so that the badge of this project always has something to show. They stay open and there is nothing to do on them. If you get one, change nothing, open no pull request, post no other comment and stop.
+
 ## Out of scope
 
 Servers, accounts, dashboards, and anything that handles someone's credentials. Read `.specify/memory/constitution.md` before anything larger than a small fix: it holds the rules this project will not bend, such as never copying free text into a command.
 
 ## Pull requests
 
-Written in English, one change per pull request, referring to the issue with `Refs #N`. Only the maintainer closes issues.
+Written in English, one change per pull request, referring to the issue with `Refs #N`. Only the maintainer closes issues. Leave `CHANGELOG.md` and the version in `package.json` alone: the maintainer changes them for a release.
