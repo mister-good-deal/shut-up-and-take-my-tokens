@@ -1,3 +1,4 @@
 {
-  "entry": ["page.ts", "tests/**/*.test.ts"]
+  "entry": ["page.ts", "tests/**/*.test.ts"],
+  "ignoreBinaries": ["jq"]
 }
