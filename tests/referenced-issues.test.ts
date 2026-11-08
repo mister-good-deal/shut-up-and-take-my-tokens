@@ -6,7 +6,7 @@ test("finds issue numbers and issue addresses in titles and bodies", () => {
 });
 
 test("finds every way of writing a reference to this repository", () => {
-    expect([...referencedIssues([{ title: "(#1) gh-2 GH-3", body: "a/b#4 A/B#5 https://github.com/A/b/issues/6 [#7] done" }], "a/b")]).toStrictEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect([...referencedIssues([{ title: "(#1) gh-2 GH-3", body: "a/b#4" }, { title: "x", body: "A/B#5 https://github.com/A/b/issues/6 [#7] done" }], "a/b")]).toStrictEqual([1, 2, 3, 4, 5, 6, 7]);
 });
 
 test("the numbers of other repositories take nothing", () => {
@@ -15,4 +15,11 @@ test("the numbers of other repositories take nothing", () => {
 
 test("a dot in a repository name is a dot", () => {
     expect([...referencedIssues([{ title: "a/bxc#9 https://github.com/a/bxc/issues/10", body: "" }], "a/b.c")], "a dot in a repository name is a dot").toStrictEqual([]);
+});
+
+test("a pull request listing many issues takes none of them, but one that closes a few takes those", () => {
+    const list = Array.from({ length: 6 }, (_, index) => `#${index + 1}`).join(" ");
+
+    expect([...referencedIssues([{ title: "x", body: list }], "a/b")], "a list takes nothing").toStrictEqual([]);
+    expect([...referencedIssues([{ title: "x", body: "#1 #2 #3 #4 #5" }], "a/b")]).toStrictEqual([1, 2, 3, 4, 5]);
 });

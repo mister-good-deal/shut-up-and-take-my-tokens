@@ -37,7 +37,7 @@ test("pull requests are not counted", () => {
 });
 
 test("only integer numbers can reach a command", () => {
-    expect(pick({ issues: [issue("1;id"), issue(2)] }).issue!.number, "only integer numbers can reach a command").toBe(2);
+    expect(pick({ issues: [issue("1;id"), issue(-5), issue(1e21), issue(2)] }).issue!.number, "only integer numbers can reach a command").toBe(2);
 });
 
 test("nothing is offered when every issue is claimed", () => {

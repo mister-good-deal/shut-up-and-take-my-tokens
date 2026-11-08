@@ -11,7 +11,7 @@ test("a claim ends at 24 hours", () => {
 });
 
 test("the marker must start the body", () => {
-    expect([...liveClaims([claim(1, 1, `Quoting: ${MARKER}`), claim(2, 1, null), claim(3, 1, "nothing")], now)], "the marker must start the body").toStrictEqual([]);
+    expect([...liveClaims([claim(1, 1, `Quoting: ${MARKER}`), claim(2, 1, null), claim(3, 1, "nothing"), claim(4, 1, `${MARKER}NOPE`)], now)], "the marker must start the body").toStrictEqual([]);
 });
 
 test("malformed comments count for nothing", () => {

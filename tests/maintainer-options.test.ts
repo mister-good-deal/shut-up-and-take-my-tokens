@@ -16,6 +16,11 @@ test("front matter only counts at the top", () => {
     expect(parseOptions("# Title\n---\nskip_permissions: true\n---\n"), "front matter only counts at the top").toStrictEqual(defaults);
 });
 
+test("front matter after a byte order mark or a blank line still counts", () => {
+    expect(parseOptions(`\uFEFF${front("providers:")}`).providers).toStrictEqual([]);
+    expect(parseOptions(`\n${front("providers:")}`).providers).toStrictEqual([]);
+});
+
 test("front matter sets the providers and skip_permissions", () => {
     expect(parseOptions(front("providers: claude, gemini\nskip_permissions: true"))).toStrictEqual({ providers: ["claude", "gemini"], skip_permissions: true });
 });

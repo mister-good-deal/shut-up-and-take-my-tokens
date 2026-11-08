@@ -125,11 +125,12 @@ function showTask({ repo, options, issue, counts, namedProblem }: Extract<PageSt
     });
 
     addProviderButtons($("providers"), options.providers, provider => {
-        const { label, bin } = PROVIDERS[provider];
+        const { label, bin, isolate } = PROVIDERS[provider];
         const mode = (document.querySelector("input[name=\"mode\"]:checked") as HTMLInputElement).value as Mode;
         const how = { ask: "", auto: " with fewer prompts", skip: " without approval prompts" }[mode];
+        const trust = isolate ? "" : " Saying yes lets that project's own settings run commands on your machine.";
 
-        void copyCommand(localCommand(provider, repo, issue.number, mode), $("command"), $("status"), `Paste it into your terminal: it forks ${repo} into a new folder, claims the issue, then starts ${label}${how}. ${label} may first ask whether you trust that folder. It then stays on its pull request until the merge, 24 hours at most, so keep the terminal open. Needs ${bin}, a signed-in gh, and git able to push through it (gh auth setup-git).`);
+        void copyCommand(localCommand(provider, repo, issue.number, mode), $("command"), $("status"), `Paste it into your terminal: it forks ${repo} into a new folder, claims the issue, then starts ${label}${how}. ${label} may first ask whether you trust that folder.${trust} It then stays on its pull request until the merge, 24 hours at most, so keep the terminal open. Needs ${bin}, a signed-in gh, and git able to push through it (gh auth setup-git).`);
     });
 }
 

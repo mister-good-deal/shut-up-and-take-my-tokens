@@ -3,17 +3,23 @@ import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { CLAIM_COMMENT, buildPrompt, localCommand } from "../lib.ts";
-import { CLAIM_URL, allProviders, missing, safeArgs, shells, stubTools } from "./helpers.ts";
+import { CLAIM_URL, allProviders, missing, shells, stubTools } from "./helpers.ts";
 
 const { dir, run, toolCalls, agentCall, workspace } = stubTools();
 
+const isolate = "--setting-sources user --strict-mcp-config";
+const askArgs: Record<string, string> = {
+    claude: `${isolate} --permission-mode manual `,
+    codex: "",
+    gemini: "-i "
+};
 const autoArgs: Record<string, string> = {
-    claude: "--permission-mode auto ",
+    claude: `${isolate} --permission-mode auto `,
     codex: "--approve-for-me ",
     gemini: "--approval-mode=auto_edit -i "
 };
 const skipArgs: Record<string, string> = {
-    claude: "--dangerously-skip-permissions ",
+    claude: `${isolate} --dangerously-skip-permissions `,
     codex: "--dangerously-bypass-approvals-and-sandbox ",
     gemini: "--approval-mode=yolo -i "
 };
@@ -26,7 +32,7 @@ const comment = `issue comment 7 --repo acme/web.app --body ${CLAIM_COMMENT}`;
 for (const shell of shells) {
     describe.skipIf(missing(shell))(`the local command under ${shell}`, () => {
         for (const provider of allProviders) {
-            for (const [mode, flags] of [["ask", safeArgs], ["auto", autoArgs], ["skip", skipArgs]] as const) {
+            for (const [mode, flags] of [["ask", askArgs], ["auto", autoArgs], ["skip", skipArgs]] as const) {
                 test(`${provider} in ${mode} mode claims the issue, then starts the agent with the address of its claim`, () => {
                     const work = workspace();
                     const command = localCommand(provider, "acme/web.app", 7, mode);
