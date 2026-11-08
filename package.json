@@ -6,10 +6,19 @@
   "scripts": {
     "test": "node --test tests/*.test.ts",
     "build": "node node_modules/typescript-7/bin/tsc -p tsconfig.build.json",
-    "typecheck": "node node_modules/typescript-7/bin/tsc -p tsconfig.json"
+    "typecheck": "node node_modules/typescript-7/bin/tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings 0",
+    "knip": "knip",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude='**/*.test.*' --test-coverage-exclude='tests/**'"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "24.19.2",
-    "typescript-7": "npm:typescript@7.0.2"
+    "eslint": "10.14.0",
+    "knip": "6.44.2",
+    "typescript": "~6.0.3",
+    "typescript-7": "npm:typescript@7.0.2",
+    "typescript-eslint": "8.72.1"
   }
 }
