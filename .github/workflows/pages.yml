@@ -25,6 +25,9 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - run: npm ci
       - run: npm run build
       # Only what the page needs goes public.
