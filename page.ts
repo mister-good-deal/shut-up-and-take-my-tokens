@@ -117,7 +117,7 @@ function showTask({ repo, options, issue, counts, namedProblem }: Extract<PageSt
     const mode = (document.querySelector('input[name="mode"]:checked') as HTMLInputElement).value as Mode;
     const how = { ask: '', auto: ' with fewer prompts', skip: ' without approval prompts' }[mode];
     void copyCommand(localCommand(provider, repo, issue.number, mode), $('command'), $('status'),
-      `Paste it into your terminal: it forks ${repo} into a new folder, claims the issue, then starts ${label}${how}. ${label} may first ask whether you trust that folder. Needs ${bin}, a signed-in gh, and git able to push through it (gh auth setup-git).`);
+      `Paste it into your terminal: it forks ${repo} into a new folder, claims the issue, then starts ${label}${how}. ${label} may first ask whether you trust that folder. It then stays on its pull request until the merge, 24 hours at most, so keep the terminal open. Needs ${bin}, a signed-in gh, and git able to push through it (gh auth setup-git).`);
   });
 }
 
