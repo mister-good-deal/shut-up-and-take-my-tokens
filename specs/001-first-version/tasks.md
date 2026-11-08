@@ -138,7 +138,7 @@ description: "Task list for the first real version"
 - [x] T029 Run P5 of `specs/001-first-version/quickstart.md` in a sandbox repository (SC-004)
 - [x] T030 Run P6 of `specs/001-first-version/quickstart.md` with a real agent and no browser, using `llms.txt` from a local server (SC-008)
 - [x] T031 Record the results in `specs/001-first-version/research.md`, state in `README.md` what remains unverified, including that no real agent has run the whole loop as a non-collaborator (FR-031), and in `index.html` and `page.js` mark anything left unverified (SC-007)
-- [ ] T032 ⚠ **Maintainer approval required**: open the pull request of `001-first-version`, enable Pages with `gh api -X POST repos/mister-good-deal/shut-up-and-take-my-tokens/pages -f build_type=workflow`, let the maintainer merge, run P7 of `specs/001-first-version/quickstart.md` on the public address, then label small real issues the maintainer approved with `take-my-tokens` (FR-029, FR-030, SC-007)
+- [x] T032 ⚠ **Maintainer approval required**: open the pull request of `001-first-version`, enable Pages with `gh api -X POST repos/mister-good-deal/shut-up-and-take-my-tokens/pages -f build_type=workflow`, let the maintainer merge, run P7 of `specs/001-first-version/quickstart.md` on the public address, then label small real issues the maintainer approved with `take-my-tokens` (FR-029, FR-030, SC-007)
 
 ---
 

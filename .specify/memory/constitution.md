@@ -87,16 +87,18 @@ Rationale: the first cloud link followed the docs exactly and did not work for a
 
 ### IX. Least Code
 
-Standard library and native platform features come first: no build step, no framework, no runtime
-dependency. Every non-trivial branch of logic MUST keep a runnable check in `npm test`.
+Standard library and native platform features come first: no framework and no runtime dependency.
+TypeScript compiled file for file is the only build step, with no bundler and no minifier, so that
+what is published stays readable. Development tools are allowed when CI runs them and the published
+page does not contain them. Every non-trivial branch of logic MUST keep a runnable check in `npm test`.
 
 Rationale: maintainers and contributors must be able to read everything this page does in minutes.
 
 ## Technical Constraints
 
-The page is HTML, CSS and JavaScript modules served as is by GitHub Pages. Logic that touches URLs or
-commands MUST live in `lib.js`, away from the DOM, so that it stays testable under Node. Commands
-target bash and zsh.
+The page is HTML, CSS and ES modules served by GitHub Pages. Logic that touches URLs or commands MUST
+live in the `lib` module, away from the DOM, so that it stays testable under Node. Commands target
+bash and zsh.
 
 ## Development Workflow
 
@@ -111,4 +113,4 @@ request, stating the reason. Versions follow semantic versioning: MAJOR for a pr
 redefined, MINOR for a principle added or materially expanded, PATCH for wording. Every plan MUST
 pass its Constitution Check, and any deviation MUST be accepted by the maintainer at GATE 2.
 
-**Version**: 1.2.0 | **Ratified**: 2026-11-07 | **Last Amended**: 2026-11-07
+**Version**: 2.0.0 | **Ratified**: 2026-11-07 | **Last Amended**: 2026-11-08
