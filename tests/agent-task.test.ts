@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { CLAIM_COMMENT, RULES, buildPrompt, listCommand, pullCheck, setupPrompt } from '../lib.js';
+import { CLAIM_COMMENT, RULES, buildPrompt, listCommand, pullCheck, setupPrompt } from '../lib.ts';
 import { missing, shells, stubTools } from './helpers.ts';
 
 const prompt = buildPrompt('a/b', 7);

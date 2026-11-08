@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import { CLAIM_COMMENT, buildPrompt, localCommand } from '../lib.js';
+import { CLAIM_COMMENT, buildPrompt, localCommand } from '../lib.ts';
 import { CLAIM_URL, allProviders, missing, safeArgs, shells, stubTools } from './helpers.ts';
 
 const { dir, run, toolCalls, agentCall, workspace } = stubTools();

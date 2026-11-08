@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after } from 'node:test';
-import { CLAIM_COMMENT, PROVIDERS, commentsUrl, instructionsUrl, issuesUrl, pullsUrl, shellQuote } from '../lib.js';
+import { CLAIM_COMMENT, PROVIDERS, commentsUrl, instructionsUrl, issuesUrl, pullsUrl, shellQuote } from '../lib.ts';
 
 export const allProviders = Object.keys(PROVIDERS);
 export const craftedRepos = ['a/b;rm -rf ~', 'a/b c', '$(id)/b', 'a/`id`', 'a/b&&id', 'a/b|id', "a/b'", 'a/..', 'a/.', '-a/b', 'a/-b', 'a/b\n', 'a/b/c', 'a', ''];

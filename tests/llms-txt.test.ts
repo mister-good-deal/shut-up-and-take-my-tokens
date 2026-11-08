@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { CLAIM_COMMENT, RULES, claimSteps, deliverySteps, instructionsUrl, listCommand, prepareSteps, pullCheck, setupSteps } from '../lib.js';
+import { CLAIM_COMMENT, RULES, claimSteps, deliverySteps, instructionsUrl, listCommand, prepareSteps, pullCheck, setupSteps } from '../lib.ts';
 
 const llms = readFileSync(new URL('../llms.txt', import.meta.url), 'utf8');
 

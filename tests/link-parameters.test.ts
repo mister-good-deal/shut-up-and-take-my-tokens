@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseParams } from '../lib.js';
+import { parseParams } from '../lib.ts';
 import { craftedRepos, search } from './helpers.ts';
 
 test('a repository with dots and underscores is valid', () => {

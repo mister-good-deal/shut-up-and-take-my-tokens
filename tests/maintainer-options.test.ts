@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseOptions } from '../lib.js';
+import { parseOptions } from '../lib.ts';
 import { allProviders, front } from './helpers.ts';
 
 const defaults = { providers: allProviders, skip_permissions: false };

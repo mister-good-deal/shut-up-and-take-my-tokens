@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pickIssue } from '../lib.js';
+import { pickIssue } from '../lib.ts';
 import { issue } from './helpers.ts';
 
 const pick = (over: object) => pickIssue({ repo: 'a/b', named: null, issues: [issue(1), issue(2), issue(3)], pulls: [], claims: new Set(), random: () => 0, ...over });

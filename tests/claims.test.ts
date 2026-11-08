@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CLAIM_COMMENT, MARKER, commentsUrl, liveClaims } from '../lib.js';
+import { CLAIM_COMMENT, MARKER, commentsUrl, liveClaims } from '../lib.ts';
 import { claim, now } from './helpers.ts';
 
 test('the claim comment starts with the marker', () => {

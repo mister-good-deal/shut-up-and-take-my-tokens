@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { badge } from '../lib.js';
+import { badge } from '../lib.ts';
 
 test('the badge counts approved issues live and names no issue', () => {
   assert.equal(

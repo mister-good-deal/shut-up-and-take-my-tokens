@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pageState } from '../lib.js';
+import { pageState } from '../lib.ts';
 import { FILE, claim, craftedRepos, fakeGitHub, front, issue, now, search } from './helpers.ts';
 
 const state = (query: string, github: { fetchFn: (url: string) => Promise<unknown> } = fakeGitHub()) => pageState(query, github.fetchFn, now, () => 0);

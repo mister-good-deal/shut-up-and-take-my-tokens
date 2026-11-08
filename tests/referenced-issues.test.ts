@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { referencedIssues } from '../lib.js';
+import { referencedIssues } from '../lib.ts';
 
 test('finds issue numbers and issue addresses in titles and bodies', () => {
   assert.deepEqual(

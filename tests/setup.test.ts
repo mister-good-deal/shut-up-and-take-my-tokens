@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { setupCommand, setupPrompt, setupSteps } from '../lib.js';
+import { setupCommand, setupPrompt, setupSteps } from '../lib.ts';
 import { allProviders, safeArgs, stubTools } from './helpers.ts';
 
 const { run, agentCall, workspace } = stubTools();

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
-import { shellQuote } from '../lib.js';
+import { shellQuote } from '../lib.ts';
 
 // Harmless on purpose: if quoting ever breaks, this text really runs, on the machine of whoever runs the tests.
 const evil = `it's $(echo sub) \`echo tick\` "q" \\ ; echo semi\nline2`;
