@@ -6,36 +6,94 @@ const REPO = /^[a-z\d][a-z\d-]*\/(?!\.{1,2}$)[\w.][\w.-]*$/i;
 const ISSUE = /^[1-9]\d{0,9}$/;
 const DAY = 24 * 60 * 60 * 1000;
 
+export type ProviderName = 'claude' | 'codex' | 'gemini';
+export type Mode = 'ask' | 'auto' | 'skip';
+
+interface Provider {
+  label: string;
+  bin: string;
+  promptFlag?: string;
+  auto: string;
+  skip: string;
+  verified?: boolean;
+}
+
+interface Options {
+  providers: ProviderName[];
+  skip_permissions: boolean;
+}
+
+type Params = { empty: true } | { error: string } | { repo: string; issue: string | null };
+
+// The parts of GitHub's answers the page reads. These types are not validation: the code still checks what it relies on.
+interface Issue {
+  number: number;
+  title: string;
+  pull_request?: unknown;
+}
+
+interface Pull {
+  title: string;
+  body: string | null;
+}
+
+interface IssueComment {
+  body: string | null;
+  created_at: string;
+  issue_url: string;
+}
+
+interface Counts {
+  available: number;
+  taken: number;
+}
+
+type NamedProblem = 'taken' | 'not-approved' | null;
+
+interface Picked {
+  issue: Issue | null;
+  counts: Counts;
+  namedProblem: NamedProblem;
+}
+
+export type PageState =
+  | { view: 'setup'; error?: string; repo?: string; reason?: 'no-file' }
+  | { view: 'refused'; repo: string; reason: 'off' | 'none-approved' | 'all-taken' | 'unreadable'; counts?: Counts }
+  | { view: 'task'; repo: string; options: Options; issue: Issue; counts: Counts; namedProblem: NamedProblem };
+
+// As much of fetch as the page uses, so that the tests can pass a fake one.
+type Fetch = (url: string) => Promise<{ ok: boolean; status: number; text(): Promise<string>; json(): Promise<unknown> }>;
+
 // The start of every claim comment. Agents and the page rely on it, so it must never change.
 export const MARKER = 'take-my-tokens:claim';
 export const CLAIM_COMMENT = `${MARKER} An AI agent started working on this issue through Shut up and take my tokens. Other agents skip it for 24 hours, or for as long as a pull request references it.`;
 
 // Approval modes: ask (no flag), auto (fewer prompts, safeguards stay on), skip (no safeguards).
-export const PROVIDERS = {
+export const PROVIDERS: Record<ProviderName, Provider> = {
   claude: { label: 'Claude Code', bin: 'claude', auto: '--permission-mode auto', skip: '--dangerously-skip-permissions' },
   codex: { label: 'Codex', bin: 'codex', auto: '--approve-for-me', skip: '--dangerously-bypass-approvals-and-sandbox' },
   // ponytail: auto_edit only approves edits, Gemini still asks before commands. It has no reviewed mode to map to.
   gemini: { label: 'Gemini CLI', bin: 'gemini', promptFlag: '-i', auto: '--approval-mode=auto_edit', skip: '--approval-mode=yolo', verified: false },
 };
 
-export function instructionsUrl(repo) {
+export function instructionsUrl(repo: string) {
   return `https://raw.githubusercontent.com/${repo}/HEAD/TAKE_MY_TOKENS.md`;
 }
 
-export function issuesUrl(repo) {
+export function issuesUrl(repo: string) {
   return `https://api.github.com/repos/${repo}/issues?labels=take-my-tokens&state=open&sort=created&direction=asc&per_page=100`;
 }
 
-export function pullsUrl(repo) {
+export function pullsUrl(repo: string) {
   return `https://api.github.com/repos/${repo}/pulls?state=open&per_page=100`;
 }
 
-export function commentsUrl(repo, now) {
+export function commentsUrl(repo: string, now: number) {
   const since = new Date(now - DAY).toISOString();
   return `https://api.github.com/repos/${repo}/issues/comments?since=${since}&sort=created&direction=desc&per_page=100`;
 }
 
-export function issuePageUrl(repo, number) {
+export function issuePageUrl(repo: string, number: number) {
   return `https://github.com/${repo}/issues/${number}`;
 }
 
@@ -43,21 +101,21 @@ export function issuePageUrl(repo, number) {
 // only known keys and exact values count, and nothing from it reaches a command as text.
 // skip_permissions only decides whether the page offers the option; the contributor still has to tick it.
 // ponytail: flat key: value lines, not YAML. A YAML parser if options ever nest.
-export function parseOptions(markdown) {
-  const options = { providers: Object.keys(PROVIDERS), skip_permissions: false };
+export function parseOptions(markdown: string) {
+  const options: Options = { providers: Object.keys(PROVIDERS) as ProviderName[], skip_permissions: false };
   const block = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown)?.[1] ?? '';
   for (const line of block.split(/\r?\n/)) {
     // Trimmed apart: a pattern that also trims the value backtracks for minutes on a crafted line, and freezes the visitor's tab.
-    const [, key, value] = /^(\w+):([\s\S]*)/.exec(line) ?? [];
+    const [, key, value = ''] = /^(\w+):([\s\S]*)/.exec(line) ?? [];
     if (key === 'skip_permissions') options.skip_permissions = value.trim() === 'true';
     if (key === 'providers') {
-      options.providers = value.replace(/[[\]\s]/g, '').split(',').filter((name) => Object.hasOwn(PROVIDERS, name));
+      options.providers = value.replace(/[[\]\s]/g, '').split(',').filter((name): name is ProviderName => Object.hasOwn(PROVIDERS, name));
     }
   }
   return options;
 }
 
-export function parseParams(search) {
+export function parseParams(search: string): Params {
   const params = new URLSearchParams(search);
   const repo = params.get('repo');
   const issue = params.get('issue');
@@ -70,10 +128,10 @@ export function parseParams(search) {
 // A mention in passing counts: a false positive only sets an issue aside, which is the safe mistake.
 // Numbers of other repositories do not, since a bot's changelog is full of them and they would hide an issue for as long as it stays open.
 // So #N and gh-N only when nothing ties them to another project (a path, a link's text, an HTML entity), owner/name#N, and this repository's /issues/N.
-export function referencedIssues(pulls, repo) {
+export function referencedIssues(pulls: Pull[], repo: string) {
   const name = repo.replaceAll('.', '\\.');
   const reference = new RegExp(`(?<![\\w/>&])(?:#|gh-)(\\d+)\\b(?!\\]\\()|(?<![\\w./-])${name}#(\\d+)\\b|github\\.com/${name}/issues/(\\d+)\\b`, 'gi');
-  const numbers = new Set();
+  const numbers = new Set<number>();
   for (const { title, body } of pulls) {
     for (const [, short, full, link] of `${title} ${body}`.matchAll(reference)) numbers.add(Number(short ?? full ?? link));
   }
@@ -82,8 +140,8 @@ export function referencedIssues(pulls, repo) {
 
 // Claims are cooperative: they keep honest agents apart and stop nobody on purpose.
 // ponytail: reads the latest 100 comments of the repo. On a busier project the page can miss a claim, and the agent's own check catches it.
-export function liveClaims(comments, now) {
-  const numbers = new Set();
+export function liveClaims(comments: IssueComment[], now: number) {
+  const numbers = new Set<number>();
   for (const { body, created_at: created, issue_url: url } of comments) {
     const issue = /\/issues\/(\d+)$/.exec(url)?.[1];
     if (issue && body?.startsWith(MARKER) && now - Date.parse(created) < DAY) numbers.add(Number(issue));
@@ -93,7 +151,14 @@ export function liveClaims(comments, now) {
 
 // Random rather than oldest, so that contributors arriving together spread out instead of racing for one issue.
 // ponytail: reads the first 100 labelled issues and open pull requests. Paginate if a real project outgrows that.
-export function pickIssue({ repo, named, issues, pulls, claims, random = Math.random }) {
+export function pickIssue({ repo, named, issues, pulls, claims, random = Math.random }: {
+  repo: string;
+  named: string | null;
+  issues: Issue[];
+  pulls: Pull[];
+  claims: Set<number>;
+  random?: () => number;
+}): Picked {
   const approved = issues.filter((issue) => !issue.pull_request && Number.isInteger(issue.number));
   const referenced = referencedIssues(pulls, repo);
   const available = approved.filter(({ number }) => !referenced.has(number) && !claims.has(number));
@@ -106,17 +171,18 @@ export function pickIssue({ repo, named, issues, pulls, claims, random = Math.ra
   return { issue, counts, namedProblem: approved.some(({ number }) => number === wanted) ? 'taken' : 'not-approved' };
 }
 
-async function readJson(fetchFn, url) {
+async function readJson(fetchFn: Fetch, url: string) {
   const response = await fetchFn(url);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 
 // The file comes first because it costs no API call, so a project that has not opted in spends none of the visitor's limit.
-export async function pageState(search, fetchFn, now = Date.now(), random = Math.random) {
-  const { empty, error, repo, issue: named } = parseParams(search);
-  if (empty) return { view: 'setup' };
-  if (error) return { view: 'setup', error };
+export async function pageState(search: string, fetchFn: Fetch, now = Date.now(), random = Math.random): Promise<PageState> {
+  const params = parseParams(search);
+  if ('empty' in params) return { view: 'setup' };
+  if ('error' in params) return { view: 'setup', error: params.error };
+  const { repo, issue: named } = params;
   try {
     const file = await fetchFn(instructionsUrl(repo));
     if (file.status === 404) return { view: 'setup', repo, reason: 'no-file' };
@@ -125,28 +191,28 @@ export async function pageState(search, fetchFn, now = Date.now(), random = Math
     if (options.providers.length === 0) return { view: 'refused', repo, reason: 'off' };
     const [issues, pulls, comments] = await Promise.all(
       [issuesUrl(repo), pullsUrl(repo), commentsUrl(repo, now)].map((url) => readJson(fetchFn, url)),
-    );
-    const work = pickIssue({ repo, named, issues, pulls, claims: liveClaims(comments, now), random });
-    if (!work.issue) return { view: 'refused', repo, reason: work.counts.taken ? 'all-taken' : 'none-approved', counts: work.counts };
-    return { view: 'task', repo, options, ...work };
+    ) as [Issue[], Pull[], IssueComment[]];
+    const { issue, counts, namedProblem } = pickIssue({ repo, named, issues, pulls, claims: liveClaims(comments, now), random });
+    if (!issue) return { view: 'refused', repo, reason: counts.taken ? 'all-taken' : 'none-approved', counts };
+    return { view: 'task', repo, options, issue, counts, namedProblem };
   } catch {
     return { view: 'refused', repo, reason: 'unreadable' };
   }
 }
 
 // The same limit as the page, and the claims come with the list, so one call answers which issues are free.
-export function listCommand(repo) {
+export function listCommand(repo: string) {
   return `gh issue list --repo ${repo} --label take-my-tokens --state open --limit 100 --json number,title,comments`;
 }
 
 // Short fragments, so that an agent does not read the long untrusted text of every open pull request.
-export function pullCheck(repo, issue) {
+export function pullCheck(repo: string, issue: number) {
   return `gh pr list --repo ${repo} --state open --limit 100 --json title,body | grep -Eio ".{0,30}(#|/issues/|gh-)${issue}[^0-9]"`;
 }
 
 // The workflow part of the task: what has to adapt at run time. Everything that can be a command is one, in localCommand.
 // Claims land up to the second, so the winner is the first one GitHub lists, which is the same answer for every agent.
-export function claimSteps(repo, issue) {
+export function claimSteps(repo: string, issue: number) {
   return [
     `Before changing anything, check that the issue is yours: run date -u, then gh issue view ${issue} --repo ${repo} --json title,body,state,labels,comments, then ${pullCheck(repo, issue)}, which prints what open pull requests say about the issue, and nothing if none mentions it.`,
     `The issue is yours only if it is open, labelled take-my-tokens, mentioned by no open pull request (a reference to an issue of another repository does not count), and, of the comments starting with ${MARKER} that are younger than 24 hours, the first one listed is your own claim comment, compared by url.`,
@@ -162,14 +228,14 @@ export const RULES = [
   'If the issue is too vague, the checks keep failing or your push is refused, say why in a comment on the issue and stop. Leave your claim comment in place so that others do not repeat the attempt right away.',
 ];
 
-export function deliverySteps(repo) {
+export function deliverySteps(repo: string) {
   return [
     `Start your work from the current state of the project: run git fetch https://github.com/${repo}.git HEAD, then git checkout -b take-my-tokens-NUMBER FETCH_HEAD, with the number of your issue.`,
     `When the checks pass, push your branch to origin, then run gh pr create --draft --repo ${repo} --head OWNER:BRANCH, where OWNER is the owner of origin. The pull request links the issue and says it was written by an AI agent.`,
   ];
 }
 
-export function buildPrompt(repo, issue) {
+export function buildPrompt(repo: string, issue: number) {
   return [
     `You are contributing to the open source project ${repo}, on behalf of the person who started this session, and other agents work on it at the same time. Your issue is #${issue}.`,
     ...claimSteps(repo, issue),
@@ -180,13 +246,13 @@ export function buildPrompt(repo, issue) {
 }
 
 // ponytail: POSIX quoting, so bash and zsh only. cmd.exe needs its own branch if Windows users ask.
-export function shellQuote(text) {
+export function shellQuote(text: string) {
   return `'${text.replaceAll("'", "'\\''")}'`;
 }
 
-function launch(provider, prompt, mode) {
+function launch(provider: ProviderName, prompt: string, mode: Mode) {
   const { bin, promptFlag, auto, skip } = PROVIDERS[provider];
-  return [bin, { auto, skip }[mode], promptFlag, shellQuote(prompt)].filter(Boolean).join(' ');
+  return [bin, { ask: '', auto, skip }[mode], promptFlag, shellQuote(prompt)].filter(Boolean).join(' ');
 }
 
 // What comes before the claim, in the command and in llms.txt.
@@ -194,7 +260,7 @@ function launch(provider, prompt, mode) {
 // since GitHub refuses a fork of your own repo. Any other failed fork leaves a clone nobody can push to, and so does git with no
 // credentials: the dry run stops both before a comment goes out, and pushes nothing, to a branch name no run uses.
 // `./` because a bare cd follows CDPATH into another checkout.
-export function prepareSteps(repo, folder) {
+export function prepareSteps(repo: string, folder: string) {
   return [
     `{ gh repo fork ${repo} --clone -- ${folder} || gh repo clone ${repo} ${folder}; }`,
     `cd ./${folder}`,
@@ -206,7 +272,7 @@ export function prepareSteps(repo, folder) {
 // Each step stops the next on failure, so no comment goes out without an installed tool and a clone that can be pushed to, and no agent starts unclaimed.
 // The folder's prefix stops a repository named .bashrc.d or bin from choosing where its files land, in the folder a person pastes from.
 // $CLAIM only holds the address GitHub returns for the comment.
-export function localCommand(provider, repo, issue, mode = 'ask') {
+export function localCommand(provider: ProviderName, repo: string, issue: number, mode: Mode = 'ask') {
   return [
     `${PROVIDERS[provider].bin} --version >/dev/null`,
     ...prepareSteps(repo, `take-my-tokens-${repo.split('/')[1]}`),
@@ -216,11 +282,11 @@ export function localCommand(provider, repo, issue, mode = 'ask') {
 }
 
 // A live count of approved open issues, and no issue in the link, so the page can hand each visitor a different one.
-export function badge(pageUrl, repo = 'owner/name') {
+export function badge(pageUrl: string, repo = 'owner/name') {
   return `[![take my tokens](https://img.shields.io/github/issues/${repo}/take-my-tokens?label=take%20my%20tokens&color=E5B53F)](${pageUrl}?repo=${repo})`;
 }
 
-export function setupSteps(pageUrl) {
+export function setupSteps(pageUrl: string) {
   return [
     'Set up Shut up and take my tokens in this repository: contributors spend their own AI subscription on issues the maintainers approved, and an agent opens a draft pull request for each.',
     'First ask me these questions one at a time and wait for each answer.',
@@ -238,12 +304,12 @@ export function setupSteps(pageUrl) {
   ];
 }
 
-export function setupPrompt(pageUrl) {
+export function setupPrompt(pageUrl: string) {
   return setupSteps(pageUrl).join(' ');
 }
 
 // Instructions stay inline rather than fetched from a URL: the maintainer reads exactly what runs,
 // and it works in agents that have no network access by default.
-export function setupCommand(provider, pageUrl) {
+export function setupCommand(provider: ProviderName, pageUrl: string) {
   return launch(provider, setupPrompt(pageUrl), 'ask');
 }

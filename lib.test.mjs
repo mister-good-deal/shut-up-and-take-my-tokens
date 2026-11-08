@@ -8,7 +8,7 @@ import {
   CLAIM_COMMENT, MARKER, PROVIDERS, RULES, badge, buildPrompt, claimSteps, commentsUrl, deliverySteps, instructionsUrl, issuesUrl,
   listCommand, liveClaims, localCommand, pageState, parseOptions, parseParams, pickIssue, prepareSteps, pullCheck, pullsUrl,
   referencedIssues, setupCommand, setupPrompt, setupSteps, shellQuote,
-} from './lib.js';
+} from './lib.ts';
 
 const search = (repo, issue) => new URLSearchParams({ repo, ...(issue === undefined ? {} : { issue }) }).toString();
 
