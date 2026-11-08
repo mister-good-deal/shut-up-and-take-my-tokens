@@ -4,13 +4,21 @@ skip_permissions: false
 ---
 # Working on this project
 
-One static page: `index.html`, `page.js` for the DOM, and `lib.js` for every decision and everything that touches a URL or a command. There is no build step and no dependency, and a change must not add one.
+One static page: `index.html`, the `page` module for the DOM, and the `lib` module for every decision and everything that touches a URL or a command. The page ships no framework and no runtime dependency, and a change must not add one. TypeScript compiled file for file is the only build step, and development tools are allowed when CI runs them.
 
 ## Before you open a pull request
 
-- Run `npm test`. Every non-trivial branch of logic needs a check in `lib.test.mjs`.
-- If you changed `index.html` or `page.js`, serve the folder with `python3 -m http.server` and check the affected states in a real browser, at phone width too.
-- If you changed a task or a rule in `lib.js`, change `llms.txt` to match: `npm test` fails otherwise.
+- Run `npm test`. Every non-trivial branch of logic needs a test.
+- If you changed the page, serve it as the README's Develop section says and check the affected states in a real browser, at phone width too.
+- If you changed a task or a rule in the `lib` module, change `llms.txt` to match: `npm test` fails otherwise.
+
+## Several agents at once
+
+The open issues here are worked on at the same time, one agent each, and each issue lists the files it owns.
+
+- Change only the files your issue owns. If you notice something else, say it in one sentence in your pull request.
+- Before you open your pull request, rebase on the project's latest `main` and make everything pass again, including checks that arrived since you started. Whoever lands second fixes what the first one changed, such as an import path.
+- If `package.json` or `package-lock.json` conflict, keep both sides and run `npm install`.
 
 ## Out of scope
 

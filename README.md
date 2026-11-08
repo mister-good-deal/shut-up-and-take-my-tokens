@@ -116,7 +116,10 @@ Not checked yet:
 ## Develop
 
 ```bash
-npm test                         # Tests
+npm ci                           # Compiler and types, for development only
+npm test                         # Tests, straight on the TypeScript sources
+npm run typecheck                # Types, no output
+npm run build                    # Writes lib.js and page.js: the page needs them to be served
 python3 -m http.server 8000      # Then open http://localhost:8000/?repo=owner/name
 ```
 
