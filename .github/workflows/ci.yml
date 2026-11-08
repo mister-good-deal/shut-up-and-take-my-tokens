@@ -38,7 +38,7 @@ jobs:
       # The tests run the command through every shell they find, and the page promises bash and zsh.
       - if: matrix.script == 'test:coverage'
         run: sudo apt-get update && sudo apt-get install -y zsh
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run "$SCRIPT"
         env:
           SCRIPT: ${{ matrix.script }}
@@ -74,18 +74,14 @@ jobs:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
 
-  publish:
+  # Installing the tools runs third-party code, so this job cannot publish anything: only the next one can.
+  build:
     if: github.event_name == 'push'
     needs: ok
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -93,13 +89,25 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run build
-      # Only what the page needs goes public.
-      - run: mkdir _site && cp -r index.html page.js lib.js llms.txt fonts _site/
+      # Only what the page needs goes public, and a symbolic link could bring in a file from outside the repository.
+      - run: mkdir _site && cp -r index.html page.js lib.js llms.txt fonts _site/ && test -z "$(find _site -type l)"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: _site
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
 
@@ -117,6 +125,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
+      # Before the token enters the job's steps.
+      - run: node scripts/changelog.ts > notes.md
       - name: Tag and release a new version
         env:
           GH_TOKEN: ${{ github.token }}
@@ -125,11 +135,10 @@ jobs:
           if gh release view "$tag" > /dev/null 2>&1; then
             echo "$tag is already released"
           else
-            node scripts/changelog.ts > notes.md
             gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file notes.md
           fi
 
-  # Minor and patch updates of the development tools merge once every check has passed. Major ones wait for the maintainer.
+  # Minor and patch updates of the npm tools merge once every check has passed. Major ones and actions wait for the maintainer.
   dependabot:
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
     needs: ok
@@ -141,8 +150,9 @@ jobs:
     steps:
       - id: meta
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-      - if: steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch'
+      - if: steps.meta.outputs.package-ecosystem == 'npm_and_yarn' && (steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch')
         env:
           GH_TOKEN: ${{ github.token }}
           PULL_REQUEST: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge "$PULL_REQUEST" --squash
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: gh pr merge "$PULL_REQUEST" --squash --match-head-commit "$HEAD"

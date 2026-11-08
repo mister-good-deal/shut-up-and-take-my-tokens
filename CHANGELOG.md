@@ -18,4 +18,4 @@ When a new `version` in `package.json` reaches `main`, CI tags it and publishes 
 - The agent stays on its pull request until it is merged or closed, for 24 hours at most, and listens only to the project's own people.
 - Three example issues, so that the badge of this project has something to show.
 - TypeScript compiled file for file, with Tatami's lint rules, Knip and Vitest.
-- One CI workflow from the pull request to the release: checks, audit of the workflows, publishing of the page, automatic tag and release, and Dependabot updates that merge themselves when they are minor or patch.
+- One CI workflow from the pull request to the release: checks, audit of the workflows, publishing of the page, automatic tag and release, and Dependabot npm updates that merge themselves when they are minor or patch.
