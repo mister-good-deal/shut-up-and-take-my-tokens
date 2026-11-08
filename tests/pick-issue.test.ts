@@ -6,11 +6,11 @@ import { issue } from './helpers.ts';
 const pick = (over: object) => pickIssue({ repo: 'a/b', named: null, issues: [issue(1), issue(2), issue(3)], pulls: [], claims: new Set(), random: () => 0, ...over });
 
 test('offers an issue when nothing is taken', () => {
-  assert.equal(pick({}).issue.number, 1);
+  assert.equal(pick({}).issue!.number, 1);
 });
 
 test('visitors spread over the available issues', () => {
-  assert.equal(pick({ random: () => 0.99 }).issue.number, 3, 'visitors spread over the available issues');
+  assert.equal(pick({ random: () => 0.99 }).issue!.number, 3, 'visitors spread over the available issues');
 });
 
 test('counts the available and the taken issues', () => {
@@ -18,19 +18,19 @@ test('counts the available and the taken issues', () => {
 });
 
 test('a claimed issue is not offered', () => {
-  assert.equal(pick({ claims: new Set([1]) }).issue.number, 2, 'a claimed issue is not offered');
+  assert.equal(pick({ claims: new Set([1]) }).issue!.number, 2, 'a claimed issue is not offered');
 });
 
 test('an issue with an open pull request is not offered', () => {
-  assert.equal(pick({ pulls: [{ title: 'Fix #1', body: '' }] }).issue.number, 2, 'an issue with an open pull request is not offered');
+  assert.equal(pick({ pulls: [{ title: 'Fix #1', body: '' }] }).issue!.number, 2, 'an issue with an open pull request is not offered');
 });
 
 test('a number of another repository takes nothing', () => {
-  assert.equal(pick({ pulls: [{ title: 'Bump', body: 'other/project#1' }] }).issue.number, 1, 'a number of another repository takes nothing');
+  assert.equal(pick({ pulls: [{ title: 'Bump', body: 'other/project#1' }] }).issue!.number, 1, 'a number of another repository takes nothing');
 });
 
 test('pull requests are not issues', () => {
-  assert.equal(pick({ issues: [issue(1, { pull_request: {} }), issue(2)] }).issue.number, 2, 'pull requests are not issues');
+  assert.equal(pick({ issues: [issue(1, { pull_request: {} }), issue(2)] }).issue!.number, 2, 'pull requests are not issues');
 });
 
 test('pull requests are not counted', () => {
@@ -38,7 +38,7 @@ test('pull requests are not counted', () => {
 });
 
 test('only integer numbers can reach a command', () => {
-  assert.equal(pick({ issues: [issue('1;id'), issue(2)] }).issue.number, 2, 'only integer numbers can reach a command');
+  assert.equal(pick({ issues: [issue('1;id'), issue(2)] }).issue!.number, 2, 'only integer numbers can reach a command');
 });
 
 test('nothing is offered when every issue is claimed', () => {

@@ -94,7 +94,7 @@ for (const shell of shells) {
 }
 
 for (const provider of allProviders) {
-  for (const mode of ['ask', 'auto']) {
+  for (const mode of ['ask', 'auto'] as const) {
     test(`${provider} in ${mode} mode keeps its safeguards`, () => {
       assert.ok(!/danger|yolo/.test(localCommand(provider, 'a/b', 7, mode)), `${mode} must keep its safeguards`);
     });

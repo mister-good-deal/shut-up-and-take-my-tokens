@@ -4,9 +4,9 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after } from 'node:test';
-import { CLAIM_COMMENT, PROVIDERS, commentsUrl, instructionsUrl, issuesUrl, pullsUrl, shellQuote } from '../lib.ts';
+import { type ProviderName, CLAIM_COMMENT, PROVIDERS, commentsUrl, instructionsUrl, issuesUrl, pullsUrl, shellQuote } from '../lib.ts';
 
-export const allProviders = Object.keys(PROVIDERS);
+export const allProviders = Object.keys(PROVIDERS) as ProviderName[];
 export const craftedRepos = ['a/b;rm -rf ~', 'a/b c', '$(id)/b', 'a/`id`', 'a/b&&id', 'a/b|id', "a/b'", 'a/..', 'a/.', '-a/b', 'a/-b', 'a/b\n', 'a/b/c', 'a', ''];
 export const search = (repo: string, issue?: string) => new URLSearchParams({ repo, ...(issue === undefined ? {} : { issue }) }).toString();
 export const front = (body: string) => `---\n${body}\n---\n# Instructions\n`;
@@ -18,7 +18,7 @@ export const claim = (issue: number, ageHours: number, body: string | null = CLA
   issue_url: `https://api.github.com/repos/a/b/issues/${issue}`,
   created_at: new Date(now - ageHours * HOUR).toISOString(),
 });
-export const issue = (number: number | string, extra: object = {}) => ({ number, title: `Issue ${number}`, ...extra });
+export const issue = <N extends number | string>(number: N, extra: object = {}) => ({ number, title: `Issue ${number}`, ...extra });
 
 export const FILE = instructionsUrl('a/b');
 type GitHub = { file?: string; fileStatus?: number; issues?: unknown; pulls?: unknown; comments?: unknown; apiStatus?: number };
@@ -27,7 +27,7 @@ export function fakeGitHub({ file = front('providers: claude'), fileStatus = 200
   const respond = (status: number, body: unknown) => ({
     status,
     ok: status < 400,
-    text: async () => body,
+    text: async () => body as string,
     json: async () => body,
   });
   const fetchFn = async (url: string) => {

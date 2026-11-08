@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pageState } from '../lib.ts';
+import { type PageState, pageState } from '../lib.ts';
 import { FILE, claim, craftedRepos, fakeGitHub, front, issue, now, search } from './helpers.ts';
 
-const state = (query: string, github: { fetchFn: (url: string) => Promise<unknown> } = fakeGitHub()) => pageState(query, github.fetchFn, now, () => 0);
+const state = (query: string, github: { fetchFn: Parameters<typeof pageState>[1] } = fakeGitHub()) => pageState(query, github.fetchFn, now, () => 0);
+const reasonOf = (page: PageState) => ('reason' in page ? page.reason : undefined);
 
 test('a link with no parameters shows the setup', async () => {
   assert.deepEqual(await state(''), { view: 'setup' });
@@ -11,7 +12,8 @@ test('a link with no parameters shows the setup', async () => {
 
 test('an invalid link reaches nothing', async () => {
   const github = fakeGitHub();
-  assert.ok((await state('repo=a/b;id', github)).error);
+  const page = await state('repo=a/b;id', github);
+  assert.ok('error' in page && page.error);
   assert.equal(github.calls.length, 0, 'an invalid link reaches nothing');
 });
 
@@ -28,19 +30,19 @@ test('a project that turned everything off spends no API call', async () => {
 });
 
 test('a file that cannot be read offers nothing', async () => {
-  assert.equal((await state('repo=a/b', fakeGitHub({ fileStatus: 500 }))).reason, 'unreadable');
+  assert.equal(reasonOf(await state('repo=a/b', fakeGitHub({ fileStatus: 500 }))), 'unreadable');
 });
 
 test('the limit on anonymous requests offers nothing', async () => {
-  assert.equal((await state('repo=a/b', fakeGitHub({ apiStatus: 403 }))).reason, 'unreadable', 'the limit on anonymous requests offers nothing');
+  assert.equal(reasonOf(await state('repo=a/b', fakeGitHub({ apiStatus: 403 }))), 'unreadable', 'the limit on anonymous requests offers nothing');
 });
 
 test('an answer that is not a list offers nothing', async () => {
-  assert.equal((await state('repo=a/b', fakeGitHub({ issues: { message: 'nope' } }))).reason, 'unreadable');
+  assert.equal(reasonOf(await state('repo=a/b', fakeGitHub({ issues: { message: 'nope' } }))), 'unreadable');
 });
 
 test('a network failure offers nothing', async () => {
-  assert.equal((await state('repo=a/b', { fetchFn: async () => { throw new TypeError('offline'); } })).reason, 'unreadable');
+  assert.equal(reasonOf(await state('repo=a/b', { fetchFn: async () => { throw new TypeError('offline'); } })), 'unreadable');
 });
 
 test('a project with no approved issue is refused', async () => {
@@ -56,7 +58,7 @@ test('an expired claim frees the issue', async () => {
 });
 
 test('an open pull request outlives its claim', async () => {
-  assert.equal((await state('repo=a/b', fakeGitHub({ comments: [claim(1, 30)], pulls: [{ title: '#1', body: '' }] }))).reason, 'all-taken', 'an open pull request outlives its claim');
+  assert.equal(reasonOf(await state('repo=a/b', fakeGitHub({ comments: [claim(1, 30)], pulls: [{ title: '#1', body: '' }] }))), 'all-taken', 'an open pull request outlives its claim');
 });
 
 test('a claimed named issue gives way to a free one, with the options of the project', async () => {
